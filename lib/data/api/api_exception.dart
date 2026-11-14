@@ -12,6 +12,10 @@ class ApiException implements Exception {
 
   static const offline = ApiException(0, 'offline', 'Keine Internetverbindung. Wir versuchen es gleich noch einmal.');
 
+  /// Das Modul ist auf vibono.de noch ausgeschaltet. Kein Fehler, die
+  /// Oberfläche blendet die Funktion einfach aus.
+  bool get isFeatureDisabled => code == 'vibono_feature_disabled';
+
   /// Freundliche deutsche Meldung für die Oberfläche.
   String get userMessage => switch (code) {
         'vibono_invalid_credentials' => 'E-Mail oder Passwort stimmt nicht.',
@@ -25,6 +29,7 @@ class ApiException implements Exception {
         'vibono_quiz_wrong' => 'Nicht ganz. In 30 Sekunden kannst du es noch einmal versuchen.',
         'vibono_daily_cap_reached' => 'Für heute hast du alle Lesepunkte gesammelt. Morgen gibt es neue!',
         'vibono_already_rewarded' => 'Für diesen Beitrag hast du schon Punkte bekommen.',
+        'vibono_feature_disabled' => 'Diese Funktion ist noch nicht freigeschaltet.',
         _ => message.isNotEmpty ? message : 'Da ist etwas schiefgelaufen.',
       };
 

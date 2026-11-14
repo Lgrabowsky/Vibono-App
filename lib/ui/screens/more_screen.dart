@@ -62,8 +62,9 @@ class MoreScreen extends ConsumerWidget {
         ),
         const Divider(),
         tile(Icons.star_outline_rounded, 'Meine Punkte', () => push(context, const PointsScreen())),
-        tile(Icons.group_add_outlined, 'Freunde einladen', () => push(context, const ReferralScreen()),
-            subtitle: 'Punkte für jede Empfehlung'),
+        if (ref.watch(remoteConfigProvider).value?.featureReferral ?? false)
+          tile(Icons.group_add_outlined, 'Freunde einladen', () => push(context, const ReferralScreen()),
+              subtitle: 'Punkte für jede Empfehlung'),
         tile(Icons.calculate_outlined, 'Energiedichte-Rechner', () => push(context, const EnergyDensityScreen()),
             subtitle: 'Eingeben, Rezept scannen oder Foto'),
         tile(Icons.monitor_weight_outlined, 'Mein Gewicht & Ziele', () => push(context, const WeightScreen())),

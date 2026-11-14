@@ -68,6 +68,9 @@ nach jeder Änderung und per Pull-to-refresh.
 
 Die App verkauft nichts, zeigt keine Preise und keine Kauf-Buttons. Shop-Links und der Euro-Gegenwert der Punkte
 erscheinen nur, wenn `GET /config` sie für die Plattform freigibt; ohne Verbindung gilt „aus“.
+Module, die auf vibono.de schrittweise eingeschaltet werden (`features.referral`, `features.shop_points`), blendet
+die App aus, solange sie aus sind: „Freunde einladen“, den Empfehlungscode bei der Registrierung und alle Hinweise
+auf Shop-Punkte. Ein `403 vibono_feature_disabled` gilt nicht als Fehler. Der Demo-Modus zeigt alle Module.
 Zusammenfassung der Store-Regeln: [docs/STORE-RICHTLINIEN.md](docs/STORE-RICHTLINIEN.md).
 
 ## Aufbau

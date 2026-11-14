@@ -222,4 +222,14 @@ class PointsBalance extends Notifier<int?> {
 final pointsBalanceProvider = NotifierProvider<PointsBalance, int?>(PointsBalance.new);
 final pointsProvider = FutureProvider<PointsSummary>((ref) => ref.watch(apiProvider).points());
 final ledgerProvider = FutureProvider<List<LedgerEntry>>((ref) => ref.watch(apiProvider).ledger());
-final referralProvider = FutureProvider<ReferralInfo>((ref) => ref.watch(apiProvider).referral());
+/// `null`, solange „Freunde werben“ auf vibono.de ausgeschaltet ist.
+final referralProvider = FutureProvider<ReferralInfo?>((ref) async {
+  final config = await ref.watch(remoteConfigProvider.future);
+  if (!config.featureReferral) return null;
+  try {
+    return await ref.watch(apiProvider).referral();
+  } on ApiException catch (e) {
+    if (e.isFeatureDisabled) return null;
+    rethrow;
+  }
+});

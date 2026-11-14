@@ -15,7 +15,9 @@ import 'referral_screen.dart';
 ///
 /// Keine Preise und keine Kauf-Buttons. Der Gegenwert und die Einlösung im
 /// Vibono-Shop erscheinen nur, wenn `GET /config` das für die Plattform
-/// freigibt (`shop_links.points_redemption`).
+/// freigibt (`shop_links.points_redemption`). Freunde werben und Shop-Punkte
+/// erscheinen erst, wenn das Modul auf vibono.de eingeschaltet ist
+/// (`features.referral`, `features.shop_points`).
 class PointsScreen extends ConsumerWidget {
   const PointsScreen({super.key});
 
@@ -34,7 +36,16 @@ class PointsScreen extends ConsumerWidget {
     final ledger = ref.watch(ledgerProvider);
     final config = ref.watch(remoteConfigProvider).value;
     final showValue = config?.linkPointsRedemption ?? false;
-    final showPurchase = config?.linkPhysicalProducts ?? false;
+    final showPurchase = (config?.featureShopPoints ?? false) && (config?.linkPhysicalProducts ?? false);
+    final showReferral = config?.featureReferral ?? false;
+    bool visibleReason(String r) => r.startsWith('purchase')
+        ? showPurchase
+        : r.startsWith('referral')
+            ? showReferral
+            : true;
+    final campaigns = summary.value?.campaigns.where((c) =>
+            c.active && (c.reasons.isEmpty || c.reasons.any(visibleReason)) && (c.kind != 'redeem' || showValue)) ??
+        const <Campaign>[];
 
     return Scaffold(
       appBar: AppBar(title: const Text('MEINE PUNKTE')),
@@ -58,7 +69,7 @@ class PointsScreen extends ConsumerWidget {
               label: const Text('IM VIBONO-SHOP EINLÖSEN'),
             ),
           ],
-          for (final c in summary.value?.campaigns.where((c) => c.active) ?? const <Campaign>[]) ...[
+          for (final c in campaigns) ...[
             const SizedBox(height: 12),
             _CampaignBanner(campaign: c, showRedeem: showValue),
           ],
@@ -67,14 +78,14 @@ class PointsScreen extends ConsumerWidget {
           const SizedBox(height: 4),
           if (summary.value != null)
             for (final e in summary.value!.earnRules.entries)
-              if (reasonLabels.containsKey(e.key) && (!e.key.startsWith('purchase') || showPurchase))
+              if (reasonLabels.containsKey(e.key) && visibleReason(e.key))
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   leading: Icon(_icon(e.key), color: VibonoColors.green),
                   title: Text(reasonLabels[e.key]!, style: VibonoText.body),
                   trailing: Text('+${formatPoints(e.value)}', style: VibonoText.cardTitle),
-                  onTap: e.key == 'referral' ? () => push(context, const ReferralScreen()) : null,
+                  onTap: e.key == 'referral' && showReferral ? () => push(context, const ReferralScreen()) : null,
                 ),
           const ListTile(
             contentPadding: EdgeInsets.zero,

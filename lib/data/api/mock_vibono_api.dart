@@ -133,7 +133,11 @@ class MockVibonoApi implements VibonoApi {
     // Wie im Vertrag vorgesehen: physische Produkte dürfen verlinkt werden,
     // digitale Inhalte und Punkte-Einlösung in den Store-Apps vorerst nicht.
     final web = platform == 'web';
+    // Die Demo zeigt alle Module. Auf vibono.de sind sie anfangs aus und
+    // werden schrittweise eingeschaltet (`features`).
     return RemoteConfig(
+      featureReferral: true,
+      featureShopPoints: true,
       linkPhysicalProducts: true,
       linkMemberships: web,
       linkPointsRedemption: web,

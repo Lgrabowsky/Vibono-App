@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibono/data/models/app_config.dart';
 import 'package:vibono/data/models/coaching_day.dart';
 import 'package:vibono/data/models/content.dart';
 import 'package:vibono/data/models/energy.dart';
@@ -156,6 +157,35 @@ void main() {
       final plans = NotificationPlanner.plan(day(d), const Profile(notificationsPerDay: 10, notificationTopics: []),
           now: DateTime(2030, 1, 10, 15));
       expect(plans.every((p) => p.at.isAfter(DateTime(2030, 1, 10, 15))), isTrue);
+    });
+  });
+
+  group('Remote-Config', () {
+    test('ohne features sind alle Module aus', () {
+      final c = RemoteConfig.fromJson({
+        'shop_links': {'physical_products': true, 'points_redemption': true},
+      });
+      expect(c.featureReferral, isFalse);
+      expect(c.featureShopPoints, isFalse);
+      expect(c.linkPhysicalProducts, isTrue);
+      // Ohne Shop-Punkte keine Einlösung, auch wenn der Link-Schalter an ist.
+      expect(c.linkPointsRedemption, isFalse);
+    });
+
+    test('features werden gelesen', () {
+      final c = RemoteConfig.fromJson({
+        'features': {'referral': true, 'shop_points': true, 'web_reading': false},
+        'shop_links': {'points_redemption': true},
+      });
+      expect(c.featureReferral, isTrue);
+      expect(c.featureShopPoints, isTrue);
+      expect(c.featureWebReading, isFalse);
+      expect(c.linkPointsRedemption, isTrue);
+    });
+
+    test('sicherer Standard zeigt nichts', () {
+      const c = RemoteConfig.safeDefault;
+      expect(c.featureReferral || c.featureShopPoints || c.linkPointsRedemption || c.linkPhysicalProducts, isFalse);
     });
   });
 }

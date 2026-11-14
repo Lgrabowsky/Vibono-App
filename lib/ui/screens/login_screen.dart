@@ -52,9 +52,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     final s = ref.read(sessionProvider.notifier);
+    final referralOn = ref.read(remoteConfigProvider).value?.featureReferral ?? false;
     try {
       if (_register) {
-        await s.register(_email.text, _password.text, _name.text, _code.text);
+        await s.register(_email.text, _password.text, _name.text, referralOn ? _code.text : null);
       } else {
         await s.login(_email.text, _password.text);
       }
@@ -124,12 +125,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   if (_register) ...[
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _code,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(labelText: 'Empfehlungscode (optional)'),
-                    ),
+                    if (ref.watch(remoteConfigProvider).value?.featureReferral ?? false) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _code,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(labelText: 'Empfehlungscode (optional)'),
+                      ),
+                    ],
                     CheckboxListTile(
                       value: _privacy,
                       onChanged: (v) => setState(() => _privacy = v ?? false),

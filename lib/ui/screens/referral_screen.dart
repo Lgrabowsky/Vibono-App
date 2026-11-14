@@ -26,7 +26,8 @@ class ReferralScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('FREUNDE EINLADEN')),
       body: switch (info) {
-        AsyncData(:final value) => ListView(padding: const EdgeInsets.all(20), children: [
+        AsyncData(value: null) => const _NotYetAvailable(),
+        AsyncData(:final value?) => ListView(padding: const EdgeInsets.all(20), children: [
             const Text('Gemeinsam abnehmen macht mehr Spaß.', style: VibonoText.hello),
             const SizedBox(height: 6),
             Text(
@@ -93,6 +94,29 @@ class ReferralScreen extends ConsumerWidget {
       },
     );
   }
+}
+
+/// „Freunde werben“ ist auf vibono.de noch ausgeschaltet. Kein Fehler.
+class _NotYetAvailable extends StatelessWidget {
+  const _NotYetAvailable();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.group_add_outlined, size: 48, color: VibonoColors.green),
+            SizedBox(height: 12),
+            Text('Freunde einladen kommt bald.', textAlign: TextAlign.center, style: VibonoText.cardTitle),
+            SizedBox(height: 6),
+            Text(
+              'Sobald es losgeht, findest du hier deinen persönlichen Einladungslink.',
+              textAlign: TextAlign.center,
+              style: VibonoText.body,
+            ),
+          ]),
+        ),
+      );
 }
 
 class _Campaign extends StatelessWidget {

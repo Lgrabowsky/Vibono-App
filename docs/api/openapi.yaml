@@ -126,7 +126,7 @@ paths:
                   type: string
                 referral_code:
                   type: string
-                  description: Code der werbenden Person, falls vorhanden
+                  description: Code der werbenden Person, falls vorhanden. Wird ignoriert, solange features.referral = false.
                 accept_privacy:
                   type: boolean
                   description: Einwilligung Datenschutz inkl. Gesundheitsdaten (Art. 9 DSGVO)
@@ -753,6 +753,7 @@ paths:
       tags:
       - Empfehlungen
       summary: Eigener Empfehlungscode, Teilen-Link und Zähler
+      description: Nur wenn GET /config features.referral = true, sonst 403 vibono_feature_disabled.
       responses:
         '200':
           description: OK
@@ -760,6 +761,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReferralInfo'
+        '403':
+          description: vibono_feature_disabled (Modul Freunde werben ist aus)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /referral/validate:
     get:
       tags:
@@ -787,6 +794,12 @@ paths:
                     nullable: true
                   friend_bonus_points:
                     type: integer
+        '403':
+          description: vibono_feature_disabled (Modul Freunde werben ist aus)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /foods:
     get:
       tags:
@@ -944,6 +957,21 @@ components:
         cents_per_point:
           type: number
           example: 1
+        features:
+          type: object
+          description: |
+            Welche Module auf vibono.de eingeschaltet sind. Die App blendet ausgeschaltete Funktionen aus.
+            Die Module werden schrittweise eingeführt (siehe docs/ANBINDUNG.md), anfangs sind alle false.
+          properties:
+            referral:
+              type: boolean
+              description: Freunde werben (GET /referral, Empfehlungscode bei der Registrierung)
+            shop_points:
+              type: boolean
+              description: Punkte für Einkäufe im Shop sammeln und dort einlösen
+            web_reading:
+              type: boolean
+              description: Lesepunkte auch für Artikel, die auf der Website gelesen werden
         support_url:
           type: string
           format: uri
