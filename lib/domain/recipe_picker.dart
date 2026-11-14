@@ -11,6 +11,13 @@ extension MealSlotX on MealSlot {
         MealSlot.abend => 'Abend',
       };
 
+  /// Volle Bezeichnung für Wochenplan und Einkaufsliste.
+  String get mealLabel => switch (this) {
+        MealSlot.fruehstueck => 'Frühstück',
+        MealSlot.mittag => 'Mittagessen',
+        MealSlot.abend => 'Abendessen',
+      };
+
   /// Schlüsselteil im Wochenplan (`YYYY-MM-DD:<slot>`).
   String get wire => name;
 }

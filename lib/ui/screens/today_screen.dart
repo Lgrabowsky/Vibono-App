@@ -17,6 +17,7 @@ import '../navigation.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
+import '../widgets/onboarding_prompt.dart';
 import '../widgets/phase_bar.dart';
 import 'points_screen.dart';
 import 'tips_screen.dart';
@@ -170,6 +171,7 @@ class _DayView extends ConsumerWidget {
         const SizedBox(height: 10),
         PhaseBar(phase: day.phase, progress: day.phaseProgress),
         const SizedBox(height: 12),
+        if (rel == 0) const OnboardingPrompt(),
         _nextCard(context, ref, next, rel),
         const SizedBox(height: 10),
         GridView.count(
@@ -320,7 +322,14 @@ class _DayView extends ConsumerWidget {
     } else if (item.tags.contains('task:gewicht')) {
       showVibonoSheet(context, WeightSheet(date: date));
     } else if (item.tags.contains('task:einkaufen')) {
-      push(context, ShoppingListScreen(onDone: () => ref.read(dayChecksProvider(dayKey(date)).notifier).toggle('einkaufen')));
+      push(
+        context,
+        ShoppingListScreen(
+          fillDays: 4,
+          basics: true,
+          onDone: () => ref.read(dayChecksProvider(dayKey(date)).notifier).toggle('einkaufen'),
+        ),
+      );
     }
   }
 }

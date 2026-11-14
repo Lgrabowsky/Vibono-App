@@ -63,6 +63,42 @@ class ContentImage extends StatelessWidget {
   }
 }
 
+/// Abhak-Kreis: leer grau umrandet, erledigt grün mit dem Vibono-V.
+class CheckCircle extends StatelessWidget {
+  const CheckCircle({super.key, required this.checked, this.onTap, this.size = 24, this.label});
+  final bool checked;
+  final VoidCallback? onTap;
+  final double size;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final circle = AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: checked ? VibonoColors.green : Colors.white,
+        border: Border.all(color: checked ? VibonoColors.green : VibonoColors.grey300, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: checked ? VibonoV(size: size * 0.5, color: Colors.white) : null,
+    );
+    if (onTap == null) return circle;
+    return Semantics(
+      checked: checked,
+      button: true,
+      label: label,
+      child: InkResponse(
+        onTap: onTap,
+        radius: size,
+        child: Padding(padding: const EdgeInsets.all(10), child: circle),
+      ),
+    );
+  }
+}
+
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key, this.color});
   final String text;

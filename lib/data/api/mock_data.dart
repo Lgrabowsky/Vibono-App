@@ -10,6 +10,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-1.png',
     'tags': ['fruehstueck', 'vegetarisch', 'schnell'],
     'energy_density': 0.9,
+    'servings': 2,
     'ingredients': [
       ['Magerquark', 200, 67],
       ['Heidelbeeren', 80, 42],
@@ -23,6 +24,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-2.png',
     'tags': ['mittag', 'abend', 'vegetarisch'],
     'energy_density': 0.6,
+    'servings': 2,
     'ingredients': [
       ['Paprika', 300, 31],
       ['Kartoffeln, gekocht', 200, 72],
@@ -38,6 +40,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-3.png',
     'tags': ['mittag', 'abend', 'vegan', 'suppe'],
     'energy_density': 0.8,
+    'servings': 2,
     'ingredients': [
       ['Karotte', 150, 36],
       ['Zucchini', 150, 19],
@@ -52,6 +55,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-4.png',
     'tags': ['fruehstueck', 'vegetarisch', 'schnell'],
     'energy_density': 0.8,
+    'servings': 2,
     'ingredients': [
       ['Erdbeeren', 200, 32],
       ['Magerquark', 150, 67],
@@ -64,6 +68,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-5.png',
     'tags': ['mittag', 'abend', 'ut-geeignet', 'suppe', 'fleisch'],
     'energy_density': 0.4,
+    'servings': 2,
     'ingredients': [
       ['Fleischbrühe', 600, 10],
       ['Rindfleisch, mager', 120, 120],
@@ -77,6 +82,7 @@ const mockRecipes = <Map<String, dynamic>>[
     'thumbnail_url': 'asset:assets/images/recipe-6.png',
     'tags': ['mittag', 'abend', 'vegetarisch'],
     'energy_density': 1.0,
+    'servings': 2,
     'ingredients': [
       ['Aubergine', 400, 24],
       ['Hirse, gekocht', 120, 120],

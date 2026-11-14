@@ -29,6 +29,8 @@ class ContentItem {
     this.done,
     this.contentHtml,
     this.wordCount,
+    this.servings,
+    this.ingredients = const [],
   });
 
   final int id;
@@ -51,6 +53,12 @@ class ContentItem {
   final String? contentHtml;
   final int? wordCount;
 
+  /// Nur Rezepte: Portionen, für die die Zutatenmengen gelten.
+  final int? servings;
+
+  /// Nur Rezepte: strukturierte Zutaten für Einkaufsliste und Tages-ED.
+  final List<RecipeIngredient> ingredients;
+
   factory ContentItem.fromJson(Json j) => ContentItem(
         id: asInt(j['id']) ?? 0,
         type: contentTypeFrom(asString(j['type'])),
@@ -69,6 +77,11 @@ class ContentItem {
         done: j['done'] == null ? null : asBool(j['done']),
         contentHtml: asString(j['content_html']),
         wordCount: asInt(j['word_count']),
+        servings: asInt(j['servings']),
+        ingredients: [
+          for (final e in (j['ingredients'] is List ? j['ingredients'] as List : const []))
+            ?RecipeIngredient.tryParse(e),
+        ],
       );
 
   Json toJson() => {
@@ -94,6 +107,64 @@ class ContentItem {
         'done': done,
         if (contentHtml != null) 'content_html': contentHtml,
         if (wordCount != null) 'word_count': wordCount,
+        if (servings != null) 'servings': servings,
+        if (ingredients.isNotEmpty) 'ingredients': [for (final i in ingredients) i.toJson()],
+      };
+}
+
+/// Zutat eines Rezepts. Die Schnittstelle liefert Objekte
+/// `{name, amount, unit, kcal_per_100g?, group?}`; ältere Beispieldaten
+/// kommen als `[name, gramm, kcal/100 g]`.
+class RecipeIngredient {
+  const RecipeIngredient({required this.name, this.amount, this.unit = 'g', this.kcalPer100g, this.group});
+
+  final String name;
+  final double? amount;
+  final String unit;
+  final double? kcalPer100g;
+
+  /// Regal im Supermarkt, falls WordPress es mitliefert.
+  final String? group;
+
+  /// Menge in Gramm, wenn sie sich sicher bestimmen lässt (g oder ml).
+  double? get grams => switch (unit) {
+        'g' || 'ml' => amount,
+        'kg' || 'l' => amount == null ? null : amount! * 1000,
+        _ => null,
+      };
+
+  static RecipeIngredient? tryParse(Object? e) {
+    if (e is List && e.isNotEmpty) {
+      final name = '${e[0]}'.trim();
+      if (name.isEmpty) return null;
+      return RecipeIngredient(
+        name: name,
+        amount: e.length > 1 ? asDouble(e[1]) : null,
+        kcalPer100g: e.length > 2 ? asDouble(e[2]) : null,
+      );
+    }
+    if (e is Map) {
+      final j = Json.from(e);
+      final name = (asString(j['name']) ?? '').trim();
+      if (name.isEmpty) return null;
+      final grams = asDouble(j['amount_g']);
+      return RecipeIngredient(
+        name: name,
+        amount: asDouble(j['amount']) ?? grams,
+        unit: (asString(j['unit']) ?? 'g').trim().toLowerCase().replaceAll('.', ''),
+        kcalPer100g: asDouble(j['kcal_per_100g']),
+        group: asString(j['group']),
+      );
+    }
+    return null;
+  }
+
+  Json toJson() => {
+        'name': name,
+        'amount': amount,
+        'unit': unit,
+        'kcal_per_100g': kcalPer100g,
+        'group': group,
       };
 }
 

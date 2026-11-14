@@ -9,6 +9,8 @@ import 'package:vibono/domain/energy_density.dart';
 import 'package:vibono/domain/goals.dart';
 import 'package:vibono/domain/notification_planner.dart';
 import 'package:vibono/domain/recipe_picker.dart';
+import 'package:vibono/domain/shopping.dart';
+import 'package:vibono/domain/week_plan.dart';
 
 ContentItem recipe(int id, List<String> tags) =>
     ContentItem(id: id, type: ContentType.recipe, title: 'Rezept $id', tags: tags);
@@ -186,6 +188,129 @@ void main() {
     test('sicherer Standard zeigt nichts', () {
       const c = RemoteConfig.safeDefault;
       expect(c.featureReferral || c.featureShopPoints || c.linkPointsRedemption || c.linkPhysicalProducts, isFalse);
+    });
+  });
+
+  group('Wochenplan', () {
+    final recipes = [
+      recipe(1, ['fruehstueck']),
+      recipe(2, ['mittag', 'abend']),
+      recipe(3, ['mittag', 'abend']),
+      recipe(4, ['mittag', 'abend']),
+    ];
+    final date = DateTime(2026, 11, 16);
+
+    test('ohne Planung füllt die App alle drei Plätze mit Haushaltsportionen', () {
+      final day = WeekPlan.day(
+        date: date,
+        recipes: recipes,
+        profile: const Profile(householdSize: 3),
+        phase: PhaseKey.phase3,
+        stored: (_) => null,
+      );
+      expect(day.map((m) => m.slot), MealSlot.values);
+      expect(day.every((m) => m.recipe != null && m.portions == 3 && !m.planned), isTrue);
+    });
+
+    test('gespeicherte Planung gewinnt, ohne recipe_id bleibt der Platz frei', () {
+      final day = WeekPlan.day(
+        date: date,
+        recipes: recipes,
+        profile: const Profile(),
+        phase: PhaseKey.phase3,
+        stored: (k) => switch (k) {
+          '2026-11-16:mittag' => {'recipe_id': 4, 'portions': 2},
+          '2026-11-16:abend' => {'portions': 1},
+          _ => null,
+        },
+      );
+      expect(day[1].recipe?.id, 4);
+      expect(day[1].portions, 2);
+      expect(day[2].isEmpty, isTrue);
+      expect(day[2].suggestion, isNotNull);
+    });
+
+    test('Schlüssel hin und zurück', () {
+      final k = WeekPlan.key(date, MealSlot.abend);
+      expect(k, '2026-11-16:abend');
+      expect(WeekPlan.parseKey(k), (date, MealSlot.abend));
+      expect(WeekPlan.parseKey('kaputt'), isNull);
+    });
+
+    test('Tages-ED aus Zutaten, gewichtet nach Tellergröße', () {
+      const light = ContentItem(id: 1, type: ContentType.recipe, title: 'Suppe', servings: 1, ingredients: [
+        RecipeIngredient(name: 'Brühe', amount: 500, kcalPer100g: 10),
+      ]);
+      const heavy = ContentItem(id: 2, type: ContentType.recipe, title: 'Nudeln', servings: 1, ingredients: [
+        RecipeIngredient(name: 'Nudeln', amount: 100, kcalPer100g: 150),
+      ]);
+      final meals = [
+        PlannedMeal(date: date, slot: MealSlot.mittag, recipe: light, portions: 1),
+        PlannedMeal(date: date, slot: MealSlot.abend, recipe: heavy, portions: 1),
+      ];
+      // (50 + 150) kcal / 600 g
+      expect(WeekPlan.dayDensity(meals), closeTo(0.333, 0.001));
+    });
+  });
+
+  group('Einkaufsliste', () {
+    const quark = ContentItem(id: 1, type: ContentType.recipe, title: 'Quark', servings: 2, ingredients: [
+      RecipeIngredient(name: 'Magerquark', amount: 200),
+      RecipeIngredient(name: 'Heidelbeeren', amount: 80),
+    ]);
+    const gulasch = ContentItem(id: 2, type: ContentType.recipe, title: 'Gulasch', servings: 2, ingredients: [
+      RecipeIngredient(name: 'magerquark', amount: 0.1, unit: 'kg'),
+      RecipeIngredient(name: 'Tomaten aus der Dose', amount: 400),
+    ]);
+    const ohne = ContentItem(id: 3, type: ContentType.recipe, title: 'Salat');
+    final d = DateTime(2026, 11, 16);
+
+    test('fasst gleiche Zutaten zusammen und rechnet auf Portionen um', () {
+      final list = Shopping.aggregate([
+        PlannedMeal(date: d, slot: MealSlot.fruehstueck, recipe: quark, portions: 1),
+        PlannedMeal(date: d, slot: MealSlot.mittag, recipe: gulasch, portions: 4),
+        PlannedMeal(date: d, slot: MealSlot.abend, portions: 2),
+      ]);
+      final q = list.firstWhere((e) => e.name == 'Magerquark');
+      expect(q.amount, 100 + 200); // 200 g für 2 → 1 Portion, 100 g für 2 → 4 Portionen
+      expect(q.group, Shopping.kuehlregal);
+      expect(q.recipes, ['Quark', 'Gulasch']);
+      expect(list.firstWhere((e) => e.name.startsWith('Tomaten')).group, Shopping.vorrat);
+      expect(list.firstWhere((e) => e.name == 'Heidelbeeren').group, Shopping.obstGemuese);
+    });
+
+    test('Rezepte ohne Zutatenliste erscheinen als eigener Eintrag', () {
+      final list = Shopping.aggregate([PlannedMeal(date: d, slot: MealSlot.mittag, recipe: ohne, portions: 2)]);
+      expect(list.single.recipeId, 3);
+      expect(list.single.group, Shopping.ohneListe);
+    });
+
+    test('Mengen lesbar gerundet', () {
+      expect(Shopping.formatAmount(1234, 'g'), '1,2 kg');
+      expect(Shopping.formatAmount(347, 'g'), '350 g');
+      expect(Shopping.formatAmount(42, 'g'), '40 g');
+      expect(Shopping.formatAmount(1.3, 'el'), '1,5 EL');
+      expect(Shopping.formatAmount(2, 'stück'), '2');
+    });
+
+    test('Zutaten aus der Schnittstelle und aus Beispieldaten', () {
+      final r = ContentItem.fromJson({
+        'id': 5,
+        'type': 'recipe',
+        'title': 'Test',
+        'servings': 2,
+        'ingredients': [
+          ['Paprika', 300, 31],
+          {'name': 'Olivenöl', 'amount': 1, 'unit': 'EL', 'group': 'Vorrat und Konserven'},
+          {'name': ''},
+        ],
+      });
+      expect(r.servings, 2);
+      expect(r.ingredients.length, 2);
+      expect(r.ingredients.first.grams, 300);
+      expect(r.ingredients.last.unit, 'el');
+      expect(r.ingredients.last.grams, isNull);
+      expect(ContentItem.fromJson(r.toJson()).ingredients.length, 2);
     });
   });
 }
