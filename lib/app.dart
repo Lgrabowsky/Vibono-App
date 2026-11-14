@@ -6,7 +6,6 @@ import 'state/providers.dart';
 import 'theme/vibono_theme.dart';
 import 'ui/screens/article_screen.dart';
 import 'ui/screens/login_screen.dart';
-import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/recipe_detail_screen.dart';
 import 'ui/shell.dart';
 import 'ui/widgets/common.dart';
@@ -54,7 +53,6 @@ class _VibonoAppState extends ConsumerState<VibonoApp> {
       home: switch (session.status) {
         SessionStatus.loading => const Scaffold(body: Center(child: VibonoLogo(height: 34))),
         SessionStatus.loggedOut => const LoginScreen(),
-        SessionStatus.onboarding => const OnboardingScreen(),
         SessionStatus.ready => const Shell(),
       },
     );

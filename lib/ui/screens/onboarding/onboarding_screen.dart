@@ -114,6 +114,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     await _finish();
   }
 
+  /// Überspringen: zurück in die App, die Kachel auf der Startseite bleibt.
+  /// Bis dahin gemachte Angaben werden schon gespeichert.
+  Future<void> _skip() async {
+    final session = ref.read(sessionProvider.notifier);
+    final changed = !identical(_p, ref.read(sessionProvider).profile);
+    final partial = _p.copyWith(completed: false);
+    Navigator.maybePop(context);
+    if (changed) {
+      try {
+        await session.saveProfile(partial);
+      } catch (_) {}
+    }
+  }
+
   Future<void> _finish() async {
     setState(() => _saving = true);
     final today = CoachingPlan.dateOnly(DateTime.now());
@@ -135,7 +149,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final notifications = ref.read(notificationServiceProvider);
       if (p.notificationsPerDay > 0) await notifications.requestPermission();
       await notifications.reschedule();
-      if (mounted && widget.editMode) Navigator.pop(context);
+      if (!mounted) return;
+      if (!widget.editMode) showMessage(context, 'Danke! Ab jetzt passt alles besser zu dir.');
+      Navigator.pop(context);
     } on ApiException catch (e) {
       if (mounted) showMessage(context, e.userMessage);
     } finally {
@@ -159,7 +175,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: Row(children: [
                 IconButton(
                   tooltip: _i == 0 ? 'Schließen' : 'Zurück',
-                  onPressed: _i == 0 && !widget.editMode ? null : _back,
+                  onPressed: _back,
                   icon: Icon(_i == 0 ? Icons.close_rounded : Icons.arrow_back_rounded, color: VibonoColors.grey400),
                 ),
                 Expanded(
@@ -173,6 +189,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   ),
                 ),
+                if (!widget.editMode)
+                  TextButton(
+                    onPressed: _skip,
+                    child: const Text('Später'),
+                  ),
               ]),
             ),
             Expanded(

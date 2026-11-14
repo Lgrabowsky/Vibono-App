@@ -43,7 +43,9 @@ final remoteConfigProvider = FutureProvider<RemoteConfig>((ref) async {
 // Sitzung
 // ---------------------------------------------------------------------------
 
-enum SessionStatus { loading, loggedOut, onboarding, ready }
+/// Nach dem Login geht es sofort in die App. Das Onboarding ist freiwillig
+/// und startet über eine Kachel auf der Startseite.
+enum SessionStatus { loading, loggedOut, ready }
 
 class SessionState {
   const SessionState(this.status, [this.me]);
@@ -65,8 +67,7 @@ class SessionNotifier extends Notifier<SessionState> {
     return const SessionState(SessionStatus.loading);
   }
 
-  SessionState _stateFor(Me me) =>
-      SessionState(me.profile.completed ? SessionStatus.ready : SessionStatus.onboarding, me);
+  SessionState _stateFor(Me me) => SessionState(SessionStatus.ready, me);
 
   Future<void> _restore() async {
     if (!_api.hasSession) {
