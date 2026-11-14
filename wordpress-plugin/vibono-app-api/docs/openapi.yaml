@@ -1,0 +1,1707 @@
+openapi: 3.0.3
+info:
+  title: Vibono App API
+  version: 1.0.0
+  description: |
+    Schnittstelle zwischen der App "Vibono" (Flutter, iOS/Android) und vibono.de (WordPress + WooCommerce).
+    Bereitgestellt vom WordPress-Plugin `vibono-app-api` unter `/wp-json/vibono/v1`.
+
+    Konventionen
+    - Alle Zeitstempel sind ISO 8601 in UTC (`2026-11-14T13:05:00Z`). Kalendertage (`date`) sind `YYYY-MM-DD` in Europe/Berlin.
+    - Tage im Coaching haben **keine Uhrzeiten**. Inhalte werden pro Tag geliefert, nicht pro Uhrzeit.
+    - Authentifizierung: `Authorization: Bearer <access_token>` (JWT HS256, 60 Minuten gültig). Mit dem Refresh-Token (90 Tage, rotiert bei jeder Nutzung) holt die App ein neues Paar.
+    - Fehler im WordPress-Standardformat: `{ "code": "vibono_…", "message": "…", "data": { "status": 4xx } }`.
+    - Geldbeträge in Cent (Integer). Punkte sind Integer.
+    - Es gibt keine In-App-Käufe. Die App zeigt keine Preise und keine Kauf-Buttons für digitale Inhalte; ob Shop-Links erscheinen, steuert `GET /config`.
+
+    Mit ANNAHME markierte Stellen hängen von Theme-/Plugin-Code ab, der noch nicht vorliegt.
+servers:
+- url: https://www.vibono.de/wp-json/vibono/v1
+- url: https://staging.vibono.de/wp-json/vibono/v1
+  description: ANNAHME, Staging-Domain noch unbekannt
+security:
+- bearerAuth: []
+tags:
+- name: Auth
+- name: Profil
+- name: Synchronisation
+- name: Inhalte
+- name: Punkte
+- name: Lesen
+- name: Empfehlungen
+- name: System
+- name: Energiedichte
+paths:
+  /config:
+    get:
+      tags:
+      - System
+      summary: Öffentliche App-Konfiguration und Feature-Flags
+      security: []
+      parameters:
+      - in: query
+        name: platform
+        schema:
+          type: string
+          enum:
+          - ios
+          - android
+          - web
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppConfig'
+  /auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Login mit Vibono-Account (E-Mail oder Benutzername + Passwort)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - username
+              - password
+              properties:
+                username:
+                  type: string
+                  description: E-Mail oder Benutzername
+                password:
+                  type: string
+                  format: password
+                device_name:
+                  type: string
+                  example: iPhone von Anna
+      responses:
+        '200':
+          description: Eingeloggt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: vibono_invalid_credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: vibono_too_many_attempts (5 Fehlversuche / 15 min je IP+Konto)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/register:
+    post:
+      tags:
+      - Auth
+      summary: Neues Vibono-Konto anlegen (legt einen WordPress-/WooCommerce-Kunden an)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              - password
+              - accept_privacy
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                first_name:
+                  type: string
+                referral_code:
+                  type: string
+                  description: Code der werbenden Person, falls vorhanden
+                accept_privacy:
+                  type: boolean
+                  description: Einwilligung Datenschutz inkl. Gesundheitsdaten (Art. 9 DSGVO)
+                device_name:
+                  type: string
+      responses:
+        '201':
+          description: Konto angelegt und eingeloggt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: vibono_invalid_email | vibono_weak_password | vibono_privacy_required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: vibono_email_exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/refresh:
+    post:
+      tags:
+      - Auth
+      summary: Neues Token-Paar mit dem Refresh-Token holen (Refresh-Token wird dabei ersetzt)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: vibono_invalid_refresh_token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Refresh-Token widerrufen
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+                all_devices:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: OK
+  /auth/password-reset:
+    post:
+      tags:
+      - Auth
+      summary: Passwort-Zurücksetzen-Mail von WordPress auslösen
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Immer 200, um keine Konten preiszugeben
+  /auth/web-session:
+    post:
+      tags:
+      - Auth
+      summary: Einmal-Link, um eingeloggt im Browser auf vibono.de zu landen (z. B. Shop, Punkte einlösen)
+      description: |
+        Liefert eine URL mit Einmal-Token (2 Minuten gültig, einmal nutzbar). Die App öffnet sie im externen Browser.
+        `redirect` muss ein Pfad auf vibono.de sein. Nur nutzen, wenn `GET /config` den Link für die Plattform erlaubt.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                redirect:
+                  type: string
+                  example: /shop/
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    type: string
+                    format: date-time
+  /me:
+    get:
+      tags:
+      - Profil
+      summary: Eigenes Profil, Mitgliedschaft, Onboarding, Ziele, Punktestand
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+    delete:
+      tags:
+      - Profil
+      summary: App-Daten löschen (Apple-Pflicht "Konto löschen in der App")
+      description: Stößt die Konto-Löschung an. Das Vibono-Team bestätigt per E-Mail (Bestellungen müssen gesetzlich aufbewahrt
+        werden).
+      responses:
+        '202':
+          description: Löschung beantragt
+  /me/profile:
+    put:
+      tags:
+      - Profil
+      summary: Onboarding-Angaben und Wunschgewichte speichern (Teil-Update, nur gesendete Felder ändern sich)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          description: vibono_invalid_profile (data.fields nennt fehlerhafte Felder)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /me/devices:
+    post:
+      tags:
+      - Profil
+      summary: Push-Token registrieren oder aktualisieren
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - token
+              - platform
+              properties:
+                token:
+                  type: string
+                platform:
+                  type: string
+                  enum:
+                  - ios
+                  - android
+                app_version:
+                  type: string
+                locale:
+                  type: string
+                  example: de-DE
+      responses:
+        '200':
+          description: OK
+    delete:
+      tags:
+      - Profil
+      summary: Push-Token entfernen
+      parameters:
+      - in: query
+        name: token
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  /sync:
+    get:
+      tags:
+      - Synchronisation
+      summary: Änderungen aller Sammlungen seit dem Cursor holen
+      description: |
+        Ohne `cursor` kommt ein vollständiger Stand. Danach immer den zurückgegebenen `cursor` speichern.
+        Änderungen, die auf der Website (MyVibono) gemacht wurden, erscheinen hier ebenfalls.
+        Bei `has_more: true` sofort erneut mit dem neuen Cursor abfragen.
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      - in: query
+        name: collections
+        description: Kommagetrennte Liste, Standard alle
+        schema:
+          type: string
+          example: favorites,weight
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 500
+          maximum: 1000
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPullResponse'
+        '410':
+          description: 'vibono_cursor_expired: Cursor zu alt, ohne Cursor neu laden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+      - Synchronisation
+      summary: Lokale Änderungen hochladen (max. 500 pro Aufruf)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - changes
+              properties:
+                changes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ClientChange'
+      responses:
+        '200':
+          description: Ergebnis je Änderung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+  /me/{collection}:
+    parameters:
+    - in: path
+      name: collection
+      required: true
+      schema:
+        type: string
+        enum:
+        - favorites
+        - lessons-done
+        - courses-done
+        - weight
+        - sport
+        - weekplan
+    get:
+      tags:
+      - Synchronisation
+      summary: Aktuellen Stand einer Sammlung holen (Komfort-Endpunkt, gleiche Daten wie /sync)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SyncItem'
+                  cursor:
+                    type: string
+    put:
+      tags:
+      - Synchronisation
+      summary: Änderungen an einer Sammlung schreiben (Komfort-Endpunkt für /sync POST)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - changes
+              properties:
+                changes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CollectionChange'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+  /coaching/today:
+    get:
+      tags:
+      - Inhalte
+      summary: Tagesübersicht für den Startbildschirm
+      parameters:
+      - in: query
+        name: date
+        description: Kalendertag, Standard heute (Europe/Berlin). Mit ‹ › blättert die App über dieses Feld.
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachingDay'
+  /content/{type}:
+    parameters:
+    - in: path
+      name: type
+      required: true
+      schema:
+        type: string
+        enum:
+        - lessons
+        - recipes
+        - tips
+        - tips-of-the-day
+    get:
+      tags:
+      - Inhalte
+      summary: Inhaltsliste, optional nur Änderungen seit `since`
+      parameters:
+      - in: query
+        name: since
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: tags
+        description: Kommagetrennt, z. B. vegetarisch,ut-geeignet (ANNAHME, Rezept-Merkmale noch zu klären)
+        schema:
+          type: string
+      - in: query
+        name: course
+        description: Nur lessons, Kurs-ID (Taxonomie-Begriff)
+        schema:
+          type: integer
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: per_page
+        schema:
+          type: integer
+          default: 20
+          maximum: 100
+      responses:
+        '200':
+          description: OK. Header X-WP-Total und X-WP-TotalPages wie bei WordPress.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContentSummary'
+                  deleted_ids:
+                    type: array
+                    description: Nur mit since, seitdem entfernte oder depublizierte IDs
+                    items:
+                      type: integer
+                  server_time:
+                    type: string
+                    format: date-time
+  /content/item/{id}:
+    get:
+      tags:
+      - Inhalte
+      summary: Einzelner Beitrag mit Volltext (Paywall geprüft)
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentDetail'
+        '403':
+          description: vibono_membership_required (data.required_plans)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /points:
+    get:
+      tags:
+      - Punkte
+      summary: Punktestand, Gegenwert und laufende Aktionen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsSummary'
+  /points/ledger:
+    get:
+      tags:
+      - Punkte
+      summary: Punkte-Verlauf, neueste zuerst
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: per_page
+        schema:
+          type: integer
+          default: 30
+          maximum: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LedgerEntry'
+                  total:
+                    type: integer
+  /points/app-open:
+    post:
+      tags:
+      - Punkte
+      summary: Tägliche App-Öffnung melden (einmal je Kalendertag Europe/Berlin, idempotent)
+      responses:
+        '200':
+          description: OK. Bei bereits gemeldetem Tag awarded_points = 0 und already_awarded = true.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AwardResult'
+  /points/campaigns:
+    get:
+      tags:
+      - Punkte
+      summary: Laufende und angekündigte Aktionen
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Campaign'
+  /reading/start:
+    post:
+      tags:
+      - Lesen
+      summary: Lese-Session für einen Artikel starten
+      description: |
+        Punkte gibt es nur, wenn der Artikel nachweislich gelesen wurde. Die Prüfung läuft serverseitig:
+        Mindest-Aktivzeit abhängig von der Wortzahl, Scrolltiefe, plausible Heartbeats (Wanduhrzeit),
+        optional eine Quizfrage. Siehe docs/PUNKTESYSTEM.md.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - post_id
+              properties:
+                post_id:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingSession'
+        '409':
+          description: 'vibono_already_rewarded: Für diesen Artikel gab es schon Punkte (Lesen ist trotzdem möglich, nur ohne
+            Punkte)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /reading/heartbeat:
+    post:
+      tags:
+      - Lesen
+      summary: Lesefortschritt melden, alle 10-15 Sekunden, nur wenn der Artikel sichtbar ist und die App im Vordergrund
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - session_id
+              - active_seconds
+              - scroll_depth
+              properties:
+                session_id:
+                  type: string
+                active_seconds:
+                  type: integer
+                  description: Summe der aktiven Lesezeit seit Start (nicht nur seit letztem Heartbeat)
+                scroll_depth:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  description: Größte erreichte Scrollposition, 1 = Ende des Artikels
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgress'
+        '404':
+          description: vibono_reading_session_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /reading/complete:
+    post:
+      tags:
+      - Lesen
+      summary: Lesen abschließen und Punkte beantragen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - session_id
+              properties:
+                session_id:
+                  type: string
+                quiz_answer:
+                  type: integer
+                  description: Index der gewählten Antwort, falls ReadingSession.quiz gesetzt
+      responses:
+        '200':
+          description: Punkte gutgeschrieben
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AwardResult'
+        '422':
+          description: |
+            vibono_reading_incomplete (data.progress zeigt was fehlt) |
+            vibono_quiz_wrong (ein zweiter Versuch ist nach 30 s erlaubt) |
+            vibono_daily_cap_reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /referral:
+    get:
+      tags:
+      - Empfehlungen
+      summary: Eigener Empfehlungscode, Teilen-Link und Zähler
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferralInfo'
+  /referral/validate:
+    get:
+      tags:
+      - Empfehlungen
+      summary: Prüfen, ob ein Code gültig ist (Registrierung)
+      security: []
+      parameters:
+      - in: query
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  referrer_first_name:
+                    type: string
+                    nullable: true
+                  friend_bonus_points:
+                    type: integer
+  /foods:
+    get:
+      tags:
+      - Energiedichte
+      summary: Lebensmittel für die manuelle Eingabe im Energiedichte-Rechner suchen
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema:
+          type: string
+          minLength: 2
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 20
+          maximum: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Food'
+  /energy-density/scan-recipe:
+    post:
+      tags:
+      - Energiedichte
+      summary: Foto eines Rezepts (Zutatenliste) auswerten
+      description: Serverseitig per Vision-Modell (Claude API, Schlüssel nur auf dem Server). Ratenlimit je Nutzer (Standard
+        20 pro Tag).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageUpload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipeScanResult'
+        '413':
+          description: vibono_image_too_large (max. 5 MB nach Base64-Dekodierung)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: vibono_rate_limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: vibono_vision_unavailable (kein API-Schlüssel hinterlegt oder Dienst nicht erreichbar)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /energy-density/analyze-photo:
+    post:
+      tags:
+      - Energiedichte
+      summary: Foto eines Gerichts grob schätzen (Portion, kcal, Energiedichte)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '#/components/schemas/ImageUpload'
+              - type: object
+                properties:
+                  description:
+                    type: string
+                    description: Optionaler Hinweis, z. B. "mit Vollkornnudeln"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoAnalysisResult'
+        '413':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Fehler
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: vibono_invalid_credentials
+        message:
+          type: string
+          example: E-Mail oder Passwort ist falsch.
+        data:
+          type: object
+          properties:
+            status:
+              type: integer
+          additionalProperties: true
+    AppConfig:
+      type: object
+      properties:
+        api_version:
+          type: string
+          example: 1.0.0
+        min_app_version:
+          type: string
+          example: 1.0.0
+        shop_links:
+          type: object
+          description: |
+            Ob die App auf den Shop verlinken darf. Physische Produkte: erlaubt. Digitale Inhalte (Mitgliedschaften):
+            standardmäßig aus, siehe docs/APP-STORE.md.
+          properties:
+            physical_products:
+              type: boolean
+            memberships:
+              type: boolean
+            points_redemption:
+              type: boolean
+        shop_url:
+          type: string
+          format: uri
+          nullable: true
+        points_enabled:
+          type: boolean
+        cents_per_point:
+          type: number
+          example: 1
+        support_url:
+          type: string
+          format: uri
+        privacy_url:
+          type: string
+          format: uri
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 3600
+        refresh_token:
+          type: string
+        refresh_expires_in:
+          type: integer
+          example: 7776000
+        user:
+          $ref: '#/components/schemas/Me'
+    Membership:
+      type: object
+      properties:
+        plan:
+          type: string
+          example: komplett-paket
+        name:
+          type: string
+          example: Komplett-Paket
+        status:
+          type: string
+          example: active
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+    Onboarding:
+      type: object
+      properties:
+        completed:
+          type: boolean
+        nutrition:
+          type: object
+          properties:
+            diet:
+              type: string
+              enum:
+              - alles
+              - flexitarisch
+              - vegetarisch
+              - vegan
+            meat_amount:
+              type: string
+              enum:
+              - viel
+              - wenig
+              - keins
+            intolerances:
+              type: array
+              items:
+                type: string
+                enum:
+                - laktose
+                - gluten
+                - fruktose
+                - histamin
+                - nuesse
+                - ei
+                - soja
+                - fisch
+            dislikes:
+              type: array
+              items:
+                type: string
+              description: Freitext-Zutaten, z. B. "Koriander"
+        activity_level:
+          type: string
+          enum:
+          - sportmuffel
+          - eingerostet
+          - moderat_aktiv
+          - sehr_aktiv
+        social:
+          type: object
+          properties:
+            gender:
+              type: string
+              enum:
+              - weiblich
+              - maennlich
+              - divers
+              - keine_angabe
+            age_group:
+              type: string
+              enum:
+              - u30
+              - 30-39
+              - 40-49
+              - 50-59
+              - 60plus
+            household_size:
+              type: integer
+              minimum: 1
+              maximum: 15
+            children:
+              type: integer
+              minimum: 0
+              maximum: 15
+        communication:
+          type: object
+          properties:
+            notifications_per_day:
+              type: integer
+              minimum: 0
+              maximum: 10
+            topics:
+              type: array
+              items:
+                type: string
+                enum:
+                - rezepte
+                - motivation
+                - aufgaben
+                - bewegung
+                - wissen
+            quiet_hours:
+              type: object
+              nullable: true
+              description: Ruhezeit für Benachrichtigungen (Gerätezeit). Betrifft nur Benachrichtigungen, nicht die Coaching-Tage.
+              properties:
+                start:
+                  type: string
+                  pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+                  example: '21:00'
+                end:
+                  type: string
+                  pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+                  example: '07:30'
+    Goals:
+      type: object
+      properties:
+        height_cm:
+          type: number
+          nullable: true
+        start_weight_kg:
+          type: number
+          nullable: true
+        target_weight_3m_kg:
+          type: number
+          nullable: true
+        target_weight_6m_kg:
+          type: number
+          nullable: true
+        target_weight_12m_kg:
+          type: number
+          nullable: true
+        coaching_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Erster Umstellungstag (Phase 1 Tag 1)
+    Me:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        first_name:
+          type: string
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+        memberships:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+        has_coaching_access:
+          type: boolean
+        onboarding:
+          $ref: '#/components/schemas/Onboarding'
+        goals:
+          $ref: '#/components/schemas/Goals'
+        points_balance:
+          type: integer
+        referral_code:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    ProfileUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+        onboarding:
+          $ref: '#/components/schemas/Onboarding'
+        goals:
+          $ref: '#/components/schemas/Goals'
+    SyncItem:
+      type: object
+      description: |
+        Schlüssel je Sammlung:
+        - favorites: "recipe:<id>" oder "tip:<id>" · data {post_id, kind}
+        - lessons_done: "<post_id>" · data {post_id}
+        - courses_done: "<term_id>" · data {term_id}
+        - weight: "YYYY-MM-DD" · data {date, kg}
+        - sport: Client-UUID · data {date, activity, minutes, note?}
+        - weekplan: "YYYY-MM-DD:<slot>" mit slot fruehstueck|mittag|abend|snack · data {date, slot, recipe_id?, note?} (keine Uhrzeiten)
+      properties:
+        collection:
+          type: string
+          enum:
+          - favorites
+          - lessons_done
+          - courses_done
+          - weight
+          - sport
+          - weekplan
+        key:
+          type: string
+        deleted:
+          type: boolean
+        data:
+          type: object
+          additionalProperties: true
+        updated_at:
+          type: string
+          format: date-time
+    ClientChange:
+      allOf:
+      - $ref: '#/components/schemas/CollectionChange'
+      - type: object
+        required:
+        - collection
+        properties:
+          collection:
+            type: string
+            enum:
+            - favorites
+            - lessons_done
+            - courses_done
+            - weight
+            - sport
+            - weekplan
+    CollectionChange:
+      type: object
+      required:
+      - key
+      - op
+      - updated_at
+      properties:
+        client_change_id:
+          type: string
+          description: Frei wählbar, kommt im Ergebnis zurück
+        key:
+          type: string
+        op:
+          type: string
+          enum:
+          - upsert
+          - delete
+        data:
+          type: object
+          additionalProperties: true
+        updated_at:
+          type: string
+          format: date-time
+          description: Zeitpunkt der Änderung auf dem Gerät
+    SyncPullResponse:
+      type: object
+      properties:
+        cursor:
+          type: string
+        has_more:
+          type: boolean
+        full:
+          type: boolean
+          description: true, wenn ohne Cursor geladen wurde. Lokale Daten dieser Sammlungen ersetzen.
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncItem'
+    SyncPushResponse:
+      type: object
+      properties:
+        cursor:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              client_change_id:
+                type: string
+              collection:
+                type: string
+              key:
+                type: string
+              status:
+                type: string
+                enum:
+                - applied
+                - stale
+                - rejected
+                description: stale = Server hat eine neuere Änderung, server_item ist maßgeblich
+              error:
+                type: string
+                nullable: true
+              server_item:
+                $ref: '#/components/schemas/SyncItem'
+    Phase:
+      type: object
+      properties:
+        key:
+          type: string
+          enum:
+          - vorbereitung
+          - phase1
+          - phase2
+          - phase3
+        label:
+          type: string
+          example: 'Phase 1: Umstellungstage'
+        day_in_phase:
+          type: integer
+          example: 1
+        day_label:
+          type: string
+          example: 1. Umstellungstag
+        coaching_day:
+          type: integer
+          description: Fortlaufender Coaching-Tag ab Start, 0 = vor dem Start
+    ContentSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum:
+          - lesson
+          - recipe
+          - tip
+          - tip_of_the_day
+        title:
+          type: string
+        excerpt:
+          type: string
+        thumbnail_url:
+          type: string
+          format: uri
+          nullable: true
+        url:
+          type: string
+          format: uri
+        tags:
+          type: array
+          items:
+            type: string
+        lesson_kind:
+          type: string
+          nullable: true
+          description: 'Nur lessons: wichtig|lesen|aufgaben|motivation|rezepte|hinweise|probleme|freiwillig'
+        course_id:
+          type: integer
+          nullable: true
+        energy_density:
+          type: number
+          nullable: true
+          description: kcal/g, nur Rezepte
+        reading_minutes:
+          type: integer
+          nullable: true
+        points_for_reading:
+          type: integer
+          description: 0 wenn schon belohnt oder nicht belohnbar
+        requires_membership:
+          type: boolean
+        locked:
+          type: boolean
+          description: true wenn der Nutzer keinen Zugriff hat
+        done:
+          type: boolean
+          nullable: true
+          description: Nur lessons
+        modified_at:
+          type: string
+          format: date-time
+    ContentDetail:
+      allOf:
+      - $ref: '#/components/schemas/ContentSummary'
+      - type: object
+        properties:
+          content_html:
+            type: string
+          word_count:
+            type: integer
+    CoachingDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        phase:
+          $ref: '#/components/schemas/Phase'
+        progress:
+          type: object
+          properties:
+            overall:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Anteil bis zum 12-Monats-Ziel
+            phase:
+              type: number
+              minimum: 0
+              maximum: 1
+            milestones:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    enum:
+                    - m3
+                    - m6
+                    - m12
+                  date:
+                    type: string
+                    format: date
+                  target_weight_kg:
+                    type: number
+                    nullable: true
+                  reached:
+                    type: boolean
+        next_step:
+          $ref: '#/components/schemas/ContentSummary'
+        sections:
+          type: object
+          description: Inhalte des Tages ohne Uhrzeiten
+          properties:
+            essen:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContentSummary'
+            bewegung:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContentSummary'
+            wissen:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContentSummary'
+            sonstiges:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContentSummary'
+        recipes:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ContentSummary'
+        vibono_tip:
+          $ref: '#/components/schemas/ContentSummary'
+        tip_of_the_day:
+          type: object
+          properties:
+            id:
+              type: integer
+              nullable: true
+            text:
+              type: string
+        points:
+          type: object
+          properties:
+            balance:
+              type: integer
+            app_open_awarded_today:
+              type: boolean
+    PointsSummary:
+      type: object
+      properties:
+        balance:
+          type: integer
+          description: Bestätigte Punkte
+        pending:
+          type: integer
+          description: Vorgemerkte Punkte (z. B. Kauf vor Ablauf der Widerrufsfrist)
+        cents_per_point:
+          type: number
+          description: Grundkurs, Start 1
+        effective_cents_per_point:
+          type: number
+          description: Kurs inkl. laufender Einlöse-Aktion
+        value_cents:
+          type: integer
+          description: balance × effective_cents_per_point
+        earn_rules:
+          type: object
+          description: Aktuelle Punkte je Aktion (inkl. Multiplikator laufender Aktionen)
+          additionalProperties:
+            type: integer
+        campaigns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campaign'
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: Freunde-Wochen
+        description:
+          type: string
+        kind:
+          type: string
+          enum:
+          - earn
+          - redeem
+        reasons:
+          type: array
+          description: Nur kind=earn, für welche Aktionen der Multiplikator gilt (leer = alle)
+          items:
+            type: string
+            enum:
+            - app_open
+            - article_read
+            - referral
+            - referral_friend
+            - purchase
+        multiplier:
+          type: number
+          example: 2
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        points:
+          type: integer
+          description: Positiv = gutgeschrieben, negativ = eingelöst/verfallen
+        reason:
+          type: string
+          enum:
+          - app_open
+          - article_read
+          - referral
+          - referral_friend
+          - purchase
+          - redeem
+          - redeem_refund
+          - admin
+          - migration
+          - expire
+        status:
+          type: string
+          enum:
+          - pending
+          - confirmed
+          - void
+        label:
+          type: string
+          example: 'Artikel gelesen: Mit 3 Phasen zum Erfolg'
+        multiplier:
+          type: number
+        campaign_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        confirms_at:
+          type: string
+          format: date-time
+          nullable: true
+    AwardResult:
+      type: object
+      properties:
+        awarded_points:
+          type: integer
+        already_awarded:
+          type: boolean
+        multiplier:
+          type: number
+        campaign:
+          $ref: '#/components/schemas/Campaign'
+        balance:
+          type: integer
+    ReadingSession:
+      type: object
+      properties:
+        session_id:
+          type: string
+        post_id:
+          type: integer
+        word_count:
+          type: integer
+        min_active_seconds:
+          type: integer
+        min_scroll_depth:
+          type: number
+          example: 0.9
+        heartbeat_interval_seconds:
+          type: integer
+          example: 10
+        points:
+          type: integer
+          description: Punkte bei erfolgreichem Abschluss (inkl. Aktion)
+        quiz:
+          nullable: true
+          type: object
+          properties:
+            question:
+              type: string
+            answers:
+              type: array
+              items:
+                type: string
+    ReadingProgress:
+      type: object
+      properties:
+        accepted_active_seconds:
+          type: integer
+          description: Vom Server anerkannte Aktivzeit (gedeckelt durch Wanduhrzeit)
+        scroll_depth:
+          type: number
+        ready_to_complete:
+          type: boolean
+    ReferralInfo:
+      type: object
+      properties:
+        code:
+          type: string
+          example: ANNA7K
+        link:
+          type: string
+          format: uri
+          example: https://www.vibono.de/?vref=ANNA7K
+        share_text:
+          type: string
+        invited:
+          type: integer
+          description: Registrierte Freunde
+        converted:
+          type: integer
+          description: Freunde mit erster bezahlter Bestellung
+        points_earned:
+          type: integer
+        points_per_referral:
+          type: integer
+          description: Inkl. laufender Aktion
+        friend_bonus_points:
+          type: integer
+    Food:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        kcal_per_100g:
+          type: number
+        source:
+          type: string
+          example: vibono
+    ImageUpload:
+      type: object
+      required:
+      - image_base64
+      - mime
+      properties:
+        image_base64:
+          type: string
+          description: Ohne data:-Präfix
+        mime:
+          type: string
+          enum:
+          - image/jpeg
+          - image/png
+          - image/webp
+    RecipeScanResult:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        servings:
+          type: integer
+          nullable: true
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              amount_g:
+                type: number
+                nullable: true
+              kcal_per_100g:
+                type: number
+                nullable: true
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 1
+              raw_text:
+                type: string
+        total_g:
+          type: number
+          nullable: true
+        kcal_total:
+          type: number
+          nullable: true
+        kcal_per_g:
+          type: number
+          nullable: true
+    PhotoAnalysisResult:
+      type: object
+      properties:
+        dish:
+          type: string
+        portion_g:
+          type: number
+        kcal_total:
+          type: number
+        kcal_per_g:
+          type: number
+        components:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              share_pct:
+                type: number
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        notes:
+          type: string

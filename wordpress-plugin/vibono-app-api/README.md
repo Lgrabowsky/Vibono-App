@@ -1,0 +1,76 @@
+# Vibono App API & Punkte (WordPress-Plugin)
+
+Verbindet die App „Vibono“ mit vibono.de und stellt ein zentrales Punktesystem für App und Shop bereit.
+
+- **Login** mit dem bestehenden Vibono-Konto (Token für die App, Registrierung mit Empfehlungscode, Passwort vergessen, Konto löschen)
+- **Zwei-Wege-Synchronisation** von MyVibono-Daten: Lieblingsrezepte, erledigte Lektionen und Kurse, Gewicht, Sport, Wochenplan (ohne Uhrzeiten), Onboarding-Angaben und Wunschgewicht nach 3, 6 und 12 Monaten
+- **Tagesübersicht** für den Startbildschirm: Phase und Tag im Coaching, Fortschritt, nächster Schritt, Essen/Bewegung/Wissen/Sonstiges, 3 Rezepte, Vibono-Tipp, Tipp des Tages
+- **Vibono-Punkte**: tägliches Öffnen, nachweislich gelesene Artikel (App und Website), Kundenwerbung, Einkäufe; Einlösen im WooCommerce-Shop; Umrechnungskurs und Aktionen im Backend
+- **Energiedichte-Rechner**: Lebensmittelsuche, Rezept-Scan und Foto-Schätzung über die Claude API (Schlüssel nur auf dem Server)
+
+API-Vertrag: [`docs/openapi.yaml`](docs/openapi.yaml) (Basis `https://www.vibono.de/wp-json/vibono/v1`).
+
+Konzepte: [Punktesystem und Lese-Nachweis](docs/PUNKTESYSTEM.md) · [Umstellung von Refer a Friend](docs/MIGRATION-REFER-A-FRIEND.md) · [Keine In-App-Käufe / App-Store-Regeln](docs/APP-STORE.md)
+
+## Installation
+
+Voraussetzungen: WordPress ≥ 6.2, PHP ≥ 8.1, WooCommerce (für Shop-Punkte), WooCommerce Memberships (für den Paywall-Abgleich).
+
+1. Im Plugin-Ordner `composer install --no-dev` ausführen (lädt das Anthropic PHP SDK für den Energiedichte-Rechner). Ohne diesen Schritt funktioniert alles außer Rezept-Scan und Foto-Schätzung.
+2. Ordner `vibono-app-api` nach `wp-content/plugins/` kopieren und aktivieren. Die Datenbanktabellen werden angelegt.
+3. In `wp-config.php` ergänzen:
+   ```php
+   define( 'VIBONO_JWT_SECRET', '…mindestens 32 zufällige Zeichen…' );
+   define( 'VIBONO_ANTHROPIC_API_KEY', '…' ); // optional, für den Energiedichte-Rechner
+   ```
+4. Unbedingt zuerst auf einer **Staging-Kopie** testen.
+5. Backend → **Vibono-Punkte → App-Schnittstelle**: Inhaltstypen, Kurs-Zuordnung zu den Phasen und MyVibono-Speicherorte prüfen (siehe „Annahmen“).
+6. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte festlegen. Start: 1 Punkt = 1 Cent.
+7. Falls der Server den `Authorization`-Header nicht an PHP durchreicht (manche Apache-Setups), in `.htaccess` ergänzen:
+   `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`
+
+## Annahmen (Theme-Code von vibono.de liegt noch nicht vor)
+
+Aus dem Quelltext von „Mein Coaching“ abgeleitet, im Backend änderbar:
+
+| Annahme | Standard | Prüfen |
+|---|---|---|
+| Inhaltstypen | Lektionen `my_coaching`, Rezepte `rezepte`, Vibono-Tipps `post`, Tipp des Tages `apptipps`, Lebensmittel `energiedichte` | Post-Typen im Theme |
+| Lektionsart (wichtig, lesen, aufgaben …) | unbekanntes Meta-Feld | Wo speichert das Theme `data-type`? |
+| Kurse je Phase | leer | Kurs-IDs (z. B. 247, 248) den Phasen zuordnen |
+| Speicherorte MyVibono (Favoriten, Gewicht, Sport, Wochenplan, Häkchen) | nur im Plugin | Nutzer-Meta-Schlüssel und Format aus `vibono-ajax.js`/Theme. Für andere Formate gibt es den Filter `vibono_api_myvibono_adapter` |
+| Rezept-Merkmale | Begriffe `vegetarisch`, `vegan`, `ut-geeignet`, `laktosefrei` … | Taxonomien der Rezepte |
+| Bewegungstipps | Kategorie `bewegung` | |
+| Refer a Friend | Nutzer-Meta `gens_referral_id`, Parameter `raf` | siehe Migrationskonzept |
+
+Solange die Speicherorte nicht eingetragen sind, speichert das Plugin App-Daten selbst; die Website sieht sie dann noch nicht. Sobald die Meta-Schlüssel eingetragen sind, werden bestehende Website-Daten beim nächsten Abgleich übernommen.
+
+## Entwicklung
+
+```bash
+composer install
+composer test        # Unit-Tests der Rechenregeln (Token, Punkte, Aktionen, Lese-Nachweis, Sync, Coaching-Kalender)
+```
+
+WP-CLI: `wp vibono migrate-raf --dry-run`, `wp vibono confirm-pending`, `wp vibono balance <email>`.
+
+### Aufbau
+
+```
+includes/Core/      reine Logik ohne WordPress (getestet)
+includes/Rest/      REST-Controller (ein Controller je Bereich)
+includes/           Dienste: Auth, SyncStore, MyVibonoBridge, Points, Campaigns, Reading, Referral, WooCommerce, Content, Profile, Vision, Admin, Cli
+assets/             reading-tracker.js (Lese-Nachweis auf der Website)
+docs/               OpenAPI-Vertrag und Konzepte
+```
+
+### Datenbank
+
+| Tabelle | Inhalt |
+|---|---|
+| `wp_vibono_tokens` | Refresh-Tokens (nur Hash) |
+| `wp_vibono_sync` | Sync-Stand je Nutzer/Sammlung/Schlüssel, `seq` = Cursor |
+| `wp_vibono_points_ledger` | Punkte-Hauptbuch |
+| `wp_vibono_campaigns` | Aktionen |
+| `wp_vibono_reading` | Lese-Sessions (werden nach 2 Tagen gelöscht) |
+| `wp_vibono_devices` | Push-Tokens |
