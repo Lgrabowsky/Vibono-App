@@ -5,26 +5,28 @@ import 'package:material_ui/material_ui.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/coaching_day.dart';
 import '../../data/models/content.dart';
-import '../../data/models/json.dart';
 import '../../data/models/sync_item.dart';
-import '../../data/sync/sync_repository.dart';
 import '../../domain/coaching_plan.dart';
+import '../../domain/energy_density.dart';
+import '../../domain/recipe_picker.dart';
 import '../../state/day_checks.dart';
+import '../../state/meal_plan.dart';
 import '../../state/providers.dart';
 import '../../theme/vibono_colors.dart';
 import '../../theme/vibono_theme.dart';
 import '../navigation.dart';
-import '../widgets/cards.dart';
+import '../widgets/ampel.dart';
 import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
 import '../widgets/onboarding_prompt.dart';
-import '../widgets/phase_bar.dart';
+import 'coaching_screen.dart' show lessonKindLabel;
 import 'points_screen.dart';
 import 'tips_screen.dart';
 import 'weekplan_screen.dart';
 
-/// Startbildschirm „Heute“ (Entwurf Variante A): alles Wichtige des
-/// Coaching-Tages auf einen Blick, ohne Uhrzeiten.
+/// Startbildschirm „Heute“ (Variante B, „Mein Tag als Pfad“): der Tag als
+/// Abfolge von Schritten ohne Uhrzeiten, der nächste offene Schritt ist
+/// hervorgehoben. Darunter Tipp des Tages und Vibono-Tipp.
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
 
@@ -36,11 +38,14 @@ class TodayScreen extends ConsumerWidget {
       bottom: false,
       child: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 10, 0),
+          padding: const EdgeInsets.fromLTRB(20, 10, 16, 0),
           child: Row(children: [
-            const VibonoLogo(height: 20),
+            const VibonoLogo(height: 22),
             const Spacer(),
-            _DateNav(date: date),
+            PointsChip(
+              points: ref.watch(pointsBalanceProvider) ?? day.value?.pointsBalance ?? 0,
+              onTap: () => push(context, const PointsScreen()),
+            ),
           ]),
         ),
         Expanded(
@@ -76,39 +81,66 @@ class _DateNav extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final n = ref.read(selectedDateProvider.notifier);
-    final text = DateFormat('EE, d. MMM', 'de_DE').format(date);
-    Widget arrow(IconData icon, String label, VoidCallback onTap) => Semantics(
-          button: true,
-          label: label,
-          child: InkResponse(
-            onTap: onTap,
-            radius: 22,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: const BoxDecoration(color: VibonoColors.grey100, shape: BoxShape.circle),
-              child: Icon(icon, size: 20, color: VibonoColors.grey),
-            ),
-          ),
+    Widget arrow(IconData icon, String label, VoidCallback onTap) => IconButton(
+          tooltip: label,
+          onPressed: onTap,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(icon, size: 22, color: VibonoColors.grey),
         );
     return Row(mainAxisSize: MainAxisSize.min, children: [
       arrow(Icons.chevron_left_rounded, 'Vorheriger Tag', n.previous),
       GestureDetector(
         onTap: n.today,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(text,
-              style: const TextStyle(
-                fontFamily: VibonoFonts.display,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: VibonoColors.grey,
-              )),
+        child: Text(
+          DateFormat('EE, d. MMMM', 'de_DE').format(date).replaceAll('.,', ',').toUpperCase(),
+          style: const TextStyle(
+            fontFamily: VibonoFonts.display,
+            fontSize: 14,
+            letterSpacing: 1.1,
+            color: VibonoColors.grey,
+          ),
         ),
       ),
       arrow(Icons.chevron_right_rounded, 'Nächster Tag', n.next),
     ]);
   }
+}
+
+/// Ein Schritt im Tagespfad.
+class _Step {
+  const _Step({
+    required this.title,
+    required this.subtitle,
+    required this.done,
+    required this.onOpen,
+    this.doneTitle,
+    this.focusTitle,
+    this.focusMeta,
+    this.action,
+    this.onAction,
+    this.onToggle,
+    this.thumb,
+    this.icon,
+    this.density,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool done;
+  final VoidCallback onOpen;
+  final String? doneTitle;
+
+  /// Text und Knopf, wenn der Schritt „Jetzt dran“ ist.
+  final String? focusTitle;
+  final String? focusMeta;
+  final String? action;
+  final VoidCallback? onAction;
+
+  /// Abhaken direkt am Kreis (Mahlzeiten).
+  final VoidCallback? onToggle;
+  final String? thumb;
+  final IconData? icon;
+  final double? density;
 }
 
 class _DayView extends ConsumerWidget {
@@ -121,10 +153,11 @@ class _DayView extends ConsumerWidget {
     final session = ref.watch(sessionProvider);
     final sync = ref.watch(syncProvider);
     final checks = ref.watch(dayChecksProvider(dayKey(date)));
-    final balance = ref.watch(pointsBalanceProvider) ?? day.pointsBalance;
+    final plan = ref.watch(planResolverProvider);
     final today = CoachingPlan.dateOnly(DateTime.now());
     final rel = CoachingPlan.daysBetween(today, date);
     final dk = dayKey(date);
+    final canCheck = rel <= 0;
 
     bool isDone(ContentItem i) {
       if (i.id > 0) return sync.has(SyncCollection.lessonsDone, '${i.id}');
@@ -141,179 +174,203 @@ class _DayView extends ConsumerWidget {
       _ => 'Rückblick',
     };
 
-    // „Als Nächstes“: der erste offene Schritt des Tages.
-    final candidates = <ContentItem>[
-      ?day.nextStep,
-      ...day.wissen,
-      ...day.sonstiges,
-    ];
-    final next = candidates.where((c) => !isDone(c)).firstOrNull;
-
     final essen = day.essen.firstOrNull;
     final bewegung = day.bewegung.firstOrNull;
-    final wissen = day.wissen.firstOrNull;
-    final wichtig = day.sonstiges.where((s) => !isDone(s)).firstOrNull ?? day.sonstiges.firstOrNull;
-    final meals = checks.where((c) => c.startsWith('meal:')).length;
     final targetMin = int.tryParse(
             bewegung?.tags.firstWhere((t) => t.startsWith('task:bewegung:'), orElse: () => '').split(':').last ?? '') ??
         20;
     final doneMin = sportMinutes(sync.items(SyncCollection.sport), dk);
 
-    final favs = {for (final f in sync.items(SyncCollection.favorites)) f.key};
+    // Mahlzeiten wie im Wochenplan, damit beide Ansichten übereinstimmen.
+    final meals = <(MealSlot, ContentItem)>[
+      if (plan != null)
+        for (final m in plan.day(date))
+          if (m.recipe != null) (m.slot, m.recipe!)
+      else
+        for (var i = 0; i < day.recipes.length && i < 3; i++) (MealSlot.values[i], day.recipes[i]),
+    ];
+
+    _Step meal(MealSlot slot, ContentItem r) {
+      final id = 'meal:${slot.wire}';
+      void toggle() => ref.read(dayChecksProvider(dk).notifier).toggle(id);
+      return _Step(
+        title: slot.mealLabel,
+        subtitle: r.title,
+        done: checks.contains(id),
+        thumb: r.thumbnailUrl,
+        density: r.energyDensity,
+        onOpen: () => openContent(context, r),
+        onToggle: canCheck ? toggle : null,
+        focusTitle: '${slot.mealLabel}: ${r.title}',
+        focusMeta: r.energyDensity == null ? null : 'Energiedichte ${EnergyDensity.format(r.energyDensity!, digits: 1)}',
+        action: 'Gegessen',
+        onAction: toggle,
+      );
+    }
+
+    _Step task(ContentItem t) {
+      final isLesson = t.id > 0;
+      final weight = t.tags.contains('task:gewicht');
+      final shop = t.tags.contains('task:einkaufen');
+      return _Step(
+        title: isLesson ? t.title : t.title,
+        subtitle: isLesson
+            ? '${lessonKindLabel(t.lessonKind)} · ${t.readingMinutes ?? 3} Min.'
+            : t.excerpt,
+        done: isDone(t),
+        doneTitle: weight ? 'Gewicht eingetragen' : null,
+        icon: isLesson ? Icons.menu_book_outlined : (weight ? Icons.monitor_weight_outlined : Icons.shopping_basket_outlined),
+        onOpen: () => _openTask(context, ref, t),
+        focusTitle: isLesson ? 'Lies „${t.title}“' : t.title,
+        focusMeta: isLesson
+            ? [
+                '${t.readingMinutes ?? 3} Min.',
+                if (t.pointsForReading > 0) '+${t.pointsForReading} Punkte',
+              ].join(' · ')
+            : t.excerpt,
+        action: isLesson ? 'Lesen' : (shop ? 'Liste' : 'Eintragen'),
+        onAction: () => _openTask(context, ref, t),
+      );
+    }
+
+    final weightTask = day.sonstiges.where((s) => s.tags.contains('task:gewicht')).firstOrNull;
+    final otherTasks = day.sonstiges.where((s) => !s.tags.contains('task:gewicht'));
+    _Step? mealFor(MealSlot s) => meals.where((m) => m.$1 == s).map((m) => meal(m.$1, m.$2)).firstOrNull;
+
+    // Reihenfolge eines Tages, ohne Uhrzeiten.
+    final steps = <_Step>[
+      if (weightTask != null) task(weightTask),
+      ?mealFor(MealSlot.fruehstueck),
+      for (final w in day.wissen) task(w),
+      for (final t in otherTasks) task(t),
+      ?mealFor(MealSlot.mittag),
+      if (bewegung != null)
+        _Step(
+          title: bewegung.title,
+          subtitle: doneMin > 0 ? '$doneMin von $targetMin Min.' : bewegung.excerpt,
+          done: doneMin >= targetMin,
+          icon: Icons.directions_walk_rounded,
+          onOpen: () => showVibonoSheet(context, SportSheet(date: date, target: targetMin)),
+          focusTitle: bewegung.title,
+          focusMeta: doneMin > 0 ? 'Schon $doneMin von $targetMin Min.' : bewegung.excerpt,
+          action: 'Eintragen',
+          onAction: () => showVibonoSheet(context, SportSheet(date: date, target: targetMin)),
+        ),
+      ?mealFor(MealSlot.abend),
+    ];
+    final doneCount = steps.where((s) => s.done).length;
+    final focus = rel == 0 ? steps.indexWhere((s) => !s.done) : -1;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
       children: [
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Expanded(child: Text(greeting, style: VibonoText.hello, maxLines: 2)),
-          PointsChip(points: balance, onTap: () => push(context, const PointsScreen())),
-        ]),
-        const SizedBox(height: 10),
-        PhaseBar(phase: day.phase, progress: day.phaseProgress),
-        const SizedBox(height: 12),
-        if (rel == 0) const OnboardingPrompt(),
-        _nextCard(context, ref, next, rel),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 2.55,
-          children: [
-            if (essen != null)
-              DayTile(
-                kind: 'Essen',
-                title: essen.title,
-                status: meals == 0 ? essen.excerpt : '$meals von 3 Mahlzeiten satt',
-                done: meals >= 3,
-                onTap: () => showVibonoSheet(context, MealsSheet(date: date, rule: essenRule(day.phase.key))),
-              ),
-            if (bewegung != null)
-              DayTile(
-                kind: 'Bewegung',
-                title: bewegung.title,
-                status: '$doneMin von $targetMin Min.',
-                done: doneMin >= targetMin,
-                onTap: () => showVibonoSheet(context, SportSheet(date: date, target: targetMin)),
-              ),
-            if (wissen != null)
-              DayTile(
-                kind: 'Wissen',
-                title: wissen.title,
-                status: isDone(wissen) ? 'Gelesen' : '${wissen.readingMinutes ?? 3} Min. Lesezeit',
-                done: isDone(wissen),
-                onTap: () => openContent(context, wissen),
-              ),
-            if (wichtig != null)
-              DayTile(
-                kind: 'Wichtig',
-                title: wichtig.title,
-                status: isDone(wichtig) ? _doneText(wichtig, sync, dk) : wichtig.excerpt,
-                done: isDone(wichtig),
-                onTap: () => _openTask(context, ref, wichtig),
-              ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        SectionHeader(
-          rel == 0 ? 'Deine Rezepte für heute' : 'Rezepte für ${DateFormat('EEEE', 'de_DE').format(date)}',
-          action: 'Wochenplan',
-          onAction: () => ref.read(tabIndexProvider.notifier).go(Tabs.wochenplan),
-        ),
-        const SizedBox(height: 6),
-        Row(children: [
-          for (var i = 0; i < day.recipes.length && i < 3; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            Expanded(
-              child: RecipeThumb(
-                recipe: day.recipes[i],
-                caption: const ['Frühstück', 'Mittag', 'Abend'][i],
-                favorite: favs.contains('recipe:${day.recipes[i].id}'),
-                onTap: () => openContent(context, day.recipes[i]),
-              ),
-            ),
-          ],
-        ]),
-        if (day.vibonoTip != null) ...[
-          const SizedBox(height: 14),
-          TipCard(tip: day.vibonoTip!, onTap: () => openContent(context, day.vibonoTip!)),
-        ],
-        if (day.tipOfTheDay.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          TipOfTheDay(text: day.tipOfTheDay),
-        ],
-        const SizedBox(height: 14),
-        Row(children: [
           Expanded(
-            child: FilledButton(
-              onPressed: () => ref.read(tabIndexProvider.notifier).go(Tabs.rezepte),
-              child: const Text('MEHR REZEPTE'),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Transform.translate(offset: const Offset(-12, 0), child: _DateNav(date: date)),
+              Text(
+                greeting.toUpperCase(),
+                maxLines: 2,
+                style: const TextStyle(
+                  fontFamily: VibonoFonts.display,
+                  fontWeight: FontWeight.w300,
+                  fontSize: 28,
+                  height: 1.15,
+                  letterSpacing: 1,
+                  color: VibonoColors.green,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(_phaseLine(day.phase), style: VibonoText.small),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          _DayRing(done: doneCount, total: steps.length),
+        ]),
+        if (rel == 0) ...[const SizedBox(height: 16), const OnboardingPrompt()],
+        const SizedBox(height: 22),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          const Expanded(
+            child: Text(
+              'DEIN TAG',
+              style: TextStyle(
+                fontFamily: VibonoFonts.display,
+                fontWeight: FontWeight.w300,
+                fontSize: 20,
+                letterSpacing: 0.8,
+                color: VibonoColors.grey,
+              ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => push(context, const TipsScreen()),
-              child: const Text('MEHR TIPPS'),
+          InkWell(
+            onTap: () => ref.read(tabIndexProvider.notifier).go(Tabs.wochenplan),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Text('WOCHENPLAN ›', style: _linkStyle),
             ),
+          ),
+        ]),
+        if (essen != null) ...[
+          const SizedBox(height: 2),
+          Text('Essen heute: ${essen.title} · ${essen.excerpt}', style: VibonoText.small),
+        ],
+        const SizedBox(height: 8),
+        for (var i = 0; i < steps.length; i++)
+          _StepRow(
+            step: steps[i],
+            focus: i == focus,
+            first: i == 0,
+            last: false,
+          ),
+        _StepRow.finish(
+          done: steps.isNotEmpty && doneCount == steps.length,
+          label: rel > 0 ? 'Vorschau: so sieht dein Tag aus' : null,
+        ),
+        const SizedBox(height: 22),
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (day.tipOfTheDay.isNotEmpty) Expanded(child: _TipOfDayTile(text: day.tipOfTheDay)),
+            if (day.tipOfTheDay.isNotEmpty && day.vibonoTip != null) const SizedBox(width: 12),
+            if (day.vibonoTip != null)
+              Expanded(child: _VibonoTipTile(tip: day.vibonoTip!, onTap: () => openContent(context, day.vibonoTip!))),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          TextButton(
+            onPressed: () => ref.read(tabIndexProvider.notifier).go(Tabs.rezepte),
+            child: const Text('MEHR REZEPTE ›', style: _linkStyle),
+          ),
+          const SizedBox(width: 16),
+          TextButton(
+            onPressed: () => push(context, const TipsScreen()),
+            child: const Text('MEHR TIPPS ›', style: _linkStyle),
           ),
         ]),
       ],
     );
   }
 
+  static const _linkStyle = TextStyle(
+    fontFamily: VibonoFonts.display,
+    fontWeight: FontWeight.w600,
+    fontSize: 14,
+    letterSpacing: 1,
+    color: VibonoColors.green600,
+  );
+
+  static String _phaseLine(Phase p) => switch (p.key) {
+        PhaseKey.vorbereitung => 'Vorbereitung · ${p.dayLabel}',
+        PhaseKey.phase1 => 'Phase 1 · ${p.dayLabel} von ${CoachingPlan.utDays}',
+        PhaseKey.phase2 => 'Phase 2 · Tag ${p.dayInPhase} von ${CoachingPlan.phase2Days} · Gewohnheiten ändern',
+        PhaseKey.phase3 => 'Phase 3 · ${p.dayLabel} · Satt essen & genießen',
+      };
+
   static String _hello() {
     final h = DateTime.now().hour;
     if (h < 11) return 'Guten Morgen';
     if (h < 18) return 'Hallo';
     return 'Guten Abend';
-  }
-
-  String _doneText(ContentItem i, SyncRepository sync, String dk) {
-    if (i.tags.contains('task:gewicht')) {
-      final kg = asDouble(sync.get(SyncCollection.weight, dk)?['kg']);
-      return kg == null ? 'Erledigt' : '${kg.toStringAsFixed(1).replaceAll('.', ',')} kg eingetragen';
-    }
-    return 'Erledigt';
-  }
-
-  Widget _nextCard(BuildContext context, WidgetRef ref, ContentItem? next, int rel) {
-    if (rel < 0) {
-      return NextStepCard(
-        soft: true,
-        label: 'Rückblick',
-        title: next == null ? 'Alles erledigt an diesem Tag' : 'Noch offen: ${next.title}',
-        subtitle: 'Mit dem Pfeil rechts geht es zurück zu heute.',
-        action: 'Heute',
-        onTap: ref.read(selectedDateProvider.notifier).today,
-      );
-    }
-    if (next == null) {
-      return NextStepCard(
-        label: rel == 0 ? 'Geschafft' : 'Vorschau',
-        title: rel == 0 ? 'Alles erledigt für heute!' : 'Alles vorbereitet',
-        subtitle: 'Gönn dir ein grünes Rezept oder einen Vibono-Tipp.',
-        action: 'Rezepte',
-        onTap: () => ref.read(tabIndexProvider.notifier).go(Tabs.rezepte),
-      );
-    }
-    final isLesson = next.id > 0;
-    final subtitle = isLesson
-        ? [
-            '${next.readingMinutes ?? 3} Minuten Lesezeit',
-            if (next.pointsForReading > 0) '+${next.pointsForReading} Punkte',
-          ].join(' · ')
-        : next.excerpt;
-    return NextStepCard(
-      soft: rel > 0,
-      label: rel > 0 ? 'Für morgen vorbereiten' : 'Als Nächstes',
-      title: isLesson ? 'Lies „${next.title}“' : next.title,
-      subtitle: subtitle,
-      action: isLesson ? 'Los' : (next.tags.contains('task:einkaufen') ? 'Liste' : 'Eintragen'),
-      onTap: () => _openTask(context, ref, next),
-    );
   }
 
   void _openTask(BuildContext context, WidgetRef ref, ContentItem item) {
@@ -333,3 +390,323 @@ class _DayView extends ConsumerWidget {
     }
   }
 }
+
+/// Fortschrittsring „2/6 erledigt“.
+class _DayRing extends StatelessWidget {
+  const _DayRing({required this.done, required this.total});
+  final int done;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: '$done von $total erledigt',
+        child: SizedBox(
+          width: 72,
+          height: 72,
+          child: Stack(alignment: Alignment.center, children: [
+            SizedBox.expand(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: total == 0 ? 0 : done / total),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOutCubic,
+                builder: (_, v, _) => CircularProgressIndicator(
+                  value: v,
+                  strokeWidth: 6,
+                  color: VibonoColors.green,
+                  backgroundColor: VibonoColors.green100,
+                ),
+              ),
+            ),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('$done/$total',
+                  style: const TextStyle(
+                    fontFamily: VibonoFonts.display,
+                    fontSize: 20,
+                    height: 1,
+                    color: VibonoColors.grey900,
+                  )),
+              const Text('erledigt', style: TextStyle(fontFamily: VibonoFonts.body, fontSize: 10, color: VibonoColors.grey500)),
+            ]),
+          ]),
+        ),
+      );
+}
+
+/// Zeile im Tagespfad: Knoten links auf einer durchgehenden Linie.
+class _StepRow extends StatelessWidget {
+  const _StepRow({required _Step this.step, required this.focus, required this.first, required this.last})
+      : finishDone = false,
+        finishLabel = null;
+
+  const _StepRow.finish({required bool done, String? label})
+      : step = null,
+        focus = false,
+        first = false,
+        last = true,
+        finishDone = done,
+        finishLabel = label;
+
+  final _Step? step;
+  final bool focus;
+  final bool first;
+  final bool last;
+  final bool finishDone;
+  final String? finishLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = step;
+    final Widget node;
+    final Widget content;
+    if (s == null) {
+      node = Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: finishDone ? VibonoColors.green : Colors.white,
+          border: finishDone ? null : Border.all(color: VibonoColors.grey300, width: 2),
+        ),
+        alignment: Alignment.center,
+        child: finishDone
+            ? const VibonoV(size: 13, color: Colors.white)
+            : const Icon(Icons.flag_outlined, size: 14, color: VibonoColors.grey400),
+      );
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(
+          finishLabel ?? (finishDone ? 'Tag geschafft. Stark!' : 'Tag geschafft, wenn alles erledigt ist'),
+          style: VibonoText.small.copyWith(
+            fontSize: 13,
+            color: finishDone ? VibonoColors.green700 : VibonoColors.grey500,
+            fontWeight: finishDone ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+      );
+    } else if (focus) {
+      node = Container(
+        width: 28,
+        height: 28,
+        margin: const EdgeInsets.only(top: 16),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          border: Border.all(color: VibonoColors.green, width: 3),
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(color: VibonoColors.green, shape: BoxShape.circle),
+        ),
+      );
+      content = _FocusCard(step: s);
+    } else {
+      node = s.done
+          ? CheckCircle(checked: true, size: 28, onTap: s.onToggle, label: '${s.title} erledigt')
+          : (s.onToggle != null
+              ? CheckCircle(checked: false, size: 28, onTap: s.onToggle, label: '${s.title} abhaken')
+              : Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: VibonoColors.grey300, width: 2),
+                  ),
+                ));
+      content = InkWell(
+        onTap: s.onOpen,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(children: [
+            SizedBox(
+              width: 48,
+              height: 40,
+              child: s.thumb != null
+                  ? Opacity(opacity: s.done ? 0.75 : 1, child: ContentImage(s.thumb))
+                  : ColoredBox(
+                      color: VibonoColors.green050,
+                      child: Icon(s.icon ?? Icons.check_rounded, size: 20, color: VibonoColors.green700),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  s.done ? (s.doneTitle ?? s.title) : s.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: VibonoText.body.copyWith(
+                    color: s.done ? VibonoColors.grey500 : VibonoColors.grey900,
+                    height: 1.3,
+                  ),
+                ),
+                Text(
+                  s.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VibonoText.small.copyWith(color: s.done ? VibonoColors.grey400 : VibonoColors.grey500),
+                ),
+              ]),
+            ),
+            if (s.density != null) ...[
+              const SizedBox(width: 8),
+              AmpelDot(s.density!),
+              const SizedBox(width: 5),
+              Text(EnergyDensity.format(s.density!, digits: 1), style: VibonoText.small.copyWith(color: VibonoColors.grey)),
+            ],
+          ]),
+        ),
+      );
+    }
+
+    // Kreis links: mit Abhak-Fläche 48 px, sonst 28 px plus Rand.
+    final hasTapNode = s != null && !focus && (s.onToggle != null);
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(
+          width: 48,
+          child: Stack(alignment: Alignment.topCenter, children: [
+            Positioned(
+              top: first ? 24 : 0,
+              bottom: last ? null : 0,
+              height: last ? 24 : null,
+              child: Container(width: 2, color: VibonoColors.grey200),
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: hasTapNode ? 0 : (focus ? 0 : 10)),
+              child: node,
+            ),
+          ]),
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: Padding(padding: EdgeInsets.only(top: focus ? 6 : 0, bottom: focus ? 6 : 0), child: content)),
+      ]),
+    );
+  }
+}
+
+class _FocusCard extends StatelessWidget {
+  const _FocusCard({required this.step});
+  final _Step step;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: const BoxDecoration(
+          color: VibonoColors.green,
+          boxShadow: [BoxShadow(color: Color(0x1F1C1C1C), blurRadius: 10, offset: Offset(0, 2))],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: step.onOpen,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const SectionLabel('Jetzt dran', color: Colors.white),
+                const SizedBox(height: 6),
+                Text(
+                  step.focusTitle ?? step.title,
+                  style: VibonoText.body.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: Text(step.focusMeta ?? '',
+                        style: VibonoText.small.copyWith(color: Colors.white.withValues(alpha: 0.95))),
+                  ),
+                  if (step.action != null)
+                    Material(
+                      color: Colors.white,
+                      shape: const StadiumBorder(),
+                      child: InkWell(
+                        customBorder: const StadiumBorder(),
+                        onTap: step.onAction ?? step.onOpen,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                          child: Text(
+                            step.action!.toUpperCase(),
+                            style: const TextStyle(
+                              fontFamily: VibonoFonts.display,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              letterSpacing: 1,
+                              color: Color(0xFF6A871F),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+class _TipOfDayTile extends StatelessWidget {
+  const _TipOfDayTile({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: VibonoColors.green050,
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.lightbulb_outline_rounded, size: 20, color: VibonoColors.green700),
+          const SizedBox(height: 8),
+          const Text('TIPP DES TAGES', style: _tileLabel),
+          const SizedBox(height: 6),
+          Text(text, style: VibonoText.small.copyWith(fontSize: 13, height: 1.5, color: VibonoColors.grey900)),
+        ]),
+      );
+}
+
+class _VibonoTipTile extends StatelessWidget {
+  const _VibonoTipTile({required this.tip, required this.onTap});
+  final ContentItem tip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Color(0x1F1C1C1C), blurRadius: 10, offset: Offset(0, 2))],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              SizedBox(height: 64, child: ContentImage(tip.thumbnailUrl)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('VIBONO-TIPP', style: _tileLabel),
+                  const SizedBox(height: 4),
+                  Text(tip.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: VibonoText.small.copyWith(fontSize: 13, height: 1.4, color: VibonoColors.grey900)),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+const _tileLabel = TextStyle(
+  fontFamily: VibonoFonts.display,
+  fontWeight: FontWeight.w600,
+  fontSize: 12,
+  letterSpacing: 1,
+  color: Color(0xFF6A871F),
+);

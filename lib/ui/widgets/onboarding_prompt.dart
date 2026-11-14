@@ -38,40 +38,32 @@ class _OnboardingPromptState extends ConsumerState<OnboardingPrompt> {
   Widget build(BuildContext context) {
     final completed = ref.watch(sessionProvider.select((s) => s.profile.completed));
     if (completed || _hidden) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: const BoxDecoration(
-        color: VibonoColors.green050,
-        border: Border(top: BorderSide(color: VibonoColors.green, width: 3)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CoachAvatar(size: 40),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Erzähl mir kurz von dir', style: VibonoText.cardTitle.copyWith(color: VibonoColors.grey900)),
-            const SizedBox(height: 4),
-            const Text(
-              'Zwei Minuten. Danach passen Rezepte, Ziele und Erinnerungen zu dir.',
-              style: VibonoText.small,
+    return Material(
+      color: VibonoColors.green050,
+      child: InkWell(
+        onTap: () => push(context, const OnboardingScreen()),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+          child: Row(children: [
+            const ClipOval(child: CoachAvatar(size: 32)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Erzähl mir kurz von dir',
+                    style: VibonoText.body.copyWith(fontWeight: FontWeight.w700, color: VibonoColors.grey900)),
+                const Text('2 Minuten, dann passen Rezepte und Ziele zu dir', style: VibonoText.small),
+              ]),
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                ),
-                onPressed: () => push(context, const OnboardingScreen()),
-                child: const Text("LOS GEHT'S"),
-              ),
-              const SizedBox(width: 8),
-              TextButton(onPressed: _later, child: const Text('Später')),
-            ]),
+            const Icon(Icons.chevron_right_rounded, color: VibonoColors.green700),
+            IconButton(
+              tooltip: 'Später',
+              visualDensity: VisualDensity.compact,
+              onPressed: _later,
+              icon: const Icon(Icons.close_rounded, size: 18, color: VibonoColors.grey400),
+            ),
           ]),
         ),
-      ]),
+      ),
     );
   }
 }
