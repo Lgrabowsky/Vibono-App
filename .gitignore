@@ -1,0 +1,14 @@
+# Allgemein
+.DS_Store
+*.log
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# Geheimnisse nie einchecken
+.env
+.env.*
+*.keystore
+*.jks
+key.properties
