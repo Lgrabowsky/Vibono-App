@@ -19,9 +19,9 @@ class Auth {
 	const REFRESH_TTL = 7776000; // 90 Tage.
 
 	public static function init(): void {
-		add_filter( 'determine_current_user', array( self::class, 'determine_user' ), 20 );
-		add_action( 'after_password_reset', array( self::class, 'revoke_user' ) );
-		add_action( 'profile_update', array( self::class, 'on_profile_update' ), 10, 3 );
+		Plugin::hook( 'determine_current_user', array( self::class, 'determine_user' ), 20 );
+		Plugin::hook( 'after_password_reset', array( self::class, 'revoke_user' ) );
+		Plugin::hook( 'profile_update', array( self::class, 'on_profile_update' ), 10, 3 );
 	}
 
 	/** Bearer-Token nur für Anfragen an unseren Namespace auswerten. */

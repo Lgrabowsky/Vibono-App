@@ -10,6 +10,8 @@ Verbindet die App „Vibono“ mit vibono.de und stellt ein zentrales Punktesyst
 
 API-Vertrag: [`docs/openapi.yaml`](docs/openapi.yaml) (Basis `https://www.vibono.de/wp-json/vibono/v1`).
 
+**Anbindung an vibono.de, Module, Notfall und Entfernen: [docs/ANBINDUNG.md](docs/ANBINDUNG.md)**
+
 Konzepte: [Punktesystem und Lese-Nachweis](docs/PUNKTESYSTEM.md) · [Umstellung von Refer a Friend](docs/MIGRATION-REFER-A-FRIEND.md) · [Keine In-App-Käufe / App-Store-Regeln](docs/APP-STORE.md)
 
 ## Installation
@@ -24,9 +26,10 @@ Voraussetzungen: WordPress ≥ 6.2, PHP ≥ 8.1, WooCommerce (für Shop-Punkte),
    define( 'VIBONO_ANTHROPIC_API_KEY', '…' ); // optional, für den Energiedichte-Rechner
    ```
 4. Unbedingt zuerst auf einer **Staging-Kopie** testen.
-5. Backend → **Vibono-Punkte → App-Schnittstelle**: Inhaltstypen, Kurs-Zuordnung zu den Phasen und MyVibono-Speicherorte prüfen (siehe „Annahmen“).
-6. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte festlegen. Start: 1 Punkt = 1 Cent.
-7. Falls der Server den `Authorization`-Header nicht an PHP durchreicht (manche Apache-Setups), in `.htaccess` ergänzen:
+5. Backend → **Vibono-Punkte → Module & Anbindung**: Systemprüfung ansehen. Nach der Aktivierung ist nur die App-Schnittstelle an; Shop, Freunde werben, Lesepunkte auf der Website und das Schreiben in MyVibono-Felder sind aus und werden schrittweise eingeschaltet (siehe [ANBINDUNG.md](docs/ANBINDUNG.md)).
+6. Backend → **Vibono-Punkte → App-Schnittstelle**: Inhaltstypen, Kurs-Zuordnung zu den Phasen und MyVibono-Speicherorte prüfen (siehe „Annahmen“).
+7. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte festlegen. Start: 1 Punkt = 1 Cent.
+8. Falls der Server den `Authorization`-Header nicht an PHP durchreicht (manche Apache-Setups), in `.htaccess` ergänzen:
    `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`
 
 ## Annahmen (Theme-Code von vibono.de liegt noch nicht vor)
@@ -43,7 +46,7 @@ Aus dem Quelltext von „Mein Coaching“ abgeleitet, im Backend änderbar:
 | Bewegungstipps | Kategorie `bewegung` | |
 | Refer a Friend | Nutzer-Meta `gens_referral_id`, Parameter `raf` | siehe Migrationskonzept |
 
-Solange die Speicherorte nicht eingetragen sind, speichert das Plugin App-Daten selbst; die Website sieht sie dann noch nicht. Sobald die Meta-Schlüssel eingetragen sind, werden bestehende Website-Daten beim nächsten Abgleich übernommen.
+Solange die Speicherorte nicht eingetragen sind, speichert das Plugin App-Daten selbst; die Website sieht sie dann noch nicht. Sobald die Meta-Schlüssel eingetragen sind, werden bestehende Website-Daten beim nächsten Abgleich übernommen. In die Theme-Felder geschrieben wird erst, wenn „MyVibono-Daten auf die Website schreiben“ eingeschaltet ist; der alte Wert wird vorher gesichert.
 
 ## Entwicklung
 
@@ -52,16 +55,17 @@ composer install
 composer test        # Unit-Tests der Rechenregeln (Token, Punkte, Aktionen, Lese-Nachweis, Sync, Coaching-Kalender)
 ```
 
-WP-CLI: `wp vibono migrate-raf --dry-run`, `wp vibono confirm-pending`, `wp vibono balance <email>`.
+WP-CLI: `wp vibono check`, `wp vibono migrate-raf --dry-run`, `wp vibono confirm-pending`, `wp vibono balance <email>`, `wp vibono export-points > punkte.csv`, `wp vibono reconcile-orders --dry-run`, `wp vibono restore-myvibono --dry-run`.
 
 ### Aufbau
 
 ```
 includes/Core/      reine Logik ohne WordPress (getestet)
 includes/Rest/      REST-Controller (ein Controller je Bereich)
-includes/           Dienste: Auth, SyncStore, MyVibonoBridge, Points, Campaigns, Reading, Referral, WooCommerce, Content, Profile, Vision, Admin, Cli
+includes/           Dienste: Auth, SyncStore, MyVibonoBridge, Points, Campaigns, Reading, Referral, WooCommerce, Content, Profile, Vision, Privacy, Health, Admin, Cli
 assets/             reading-tracker.js (Lese-Nachweis auf der Website)
 docs/               OpenAPI-Vertrag und Konzepte
+uninstall.php       Aufräumen beim Löschen (Daten standardmäßig behalten)
 ```
 
 ### Datenbank

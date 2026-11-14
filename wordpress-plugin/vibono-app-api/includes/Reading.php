@@ -16,11 +16,20 @@ class Reading {
 
 	const QUIZ_META = '_vibono_quiz';
 
+	/** Immer aktiv: Aufräumen per Cron; Quiz-Box im Editor nur, wenn Lesepunkte irgendwo vergeben werden. */
+	public static function init(): void {
+		Plugin::hook( 'vibono_points_daily', array( self::class, 'cleanup' ) );
+		$used = Settings::get( 'points_enabled' ) && 'off' !== Settings::get( 'reading_quiz_mode' )
+			&& ( Settings::on( 'module_api' ) || Settings::on( 'module_web_reading' ) );
+		if ( $used && is_admin() ) {
+			Plugin::hook( 'add_meta_boxes', array( self::class, 'meta_box' ) );
+			Plugin::hook( 'save_post', array( self::class, 'save_quiz' ), 10, 2 );
+		}
+	}
+
+	/** Modul "Lese-Nachweis auf der Website": Skript auf belohnten Beitragsseiten für eingeloggte Nutzer*innen. */
 	public static function init_web(): void {
-		add_action( 'wp_enqueue_scripts', array( self::class, 'enqueue_web' ) );
-		add_action( 'vibono_points_daily', array( self::class, 'cleanup' ) );
-		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
-		add_action( 'save_post', array( self::class, 'save_quiz' ), 10, 2 );
+		Plugin::hook( 'wp_enqueue_scripts', array( self::class, 'enqueue_web' ) );
 	}
 
 	public static function eligible( int $post_id ): bool {

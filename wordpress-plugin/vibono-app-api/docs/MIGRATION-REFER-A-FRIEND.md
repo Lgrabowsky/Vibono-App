@@ -33,11 +33,11 @@ Zeigt, wie viele Codes übernommen und welche offenen Gutscheine in wie viele Pu
 
 **Umstellung (Live, ruhige Uhrzeit)**
 1. Kund*innen vorab informieren (Newsletter/Mein Konto): „Aus Empfehlungs-Gutscheinen werden Vibono-Punkte.“
-2. Plugin aktivieren, Einstellungen übernehmen, Aktion „Start: doppelte Punkte fürs Werben“ anlegen (optional).
+2. Plugin aktivieren, Einstellungen übernehmen, Aktion „Start: doppelte Punkte fürs Werben“ anlegen (optional). Das Modul **Freunde werben** bleibt bis Schritt 4 aus.
 3. `wp vibono migrate-raf --coupon-meta=<…>` ausführen:
    - Alte Codes werden die neuen Codes. Alte Links bleiben gültig.
    - Offene Refer-a-friend-Gutscheine mit festem Betrag werden 1:1 in Punkte umgewandelt (bei 1 Cent je Punkt: 5 € = 500 Punkte) und der Gutschein beendet. Prozent-Gutscheine bleiben unverändert bis zu ihrem Ablauf.
-4. In Refer a Friend die Belohnungen abschalten (keine neuen Gutscheine mehr), das Plugin aber noch **30 Tage aktiv lassen**: Cookies und laufende Empfehlungen bleiben so nachvollziehbar. Das Vibono-Plugin liest das `raf`-Cookie nicht, wertet aber neue Klicks auf `?raf=`-Links selbst aus.
+4. In Refer a Friend die Belohnungen abschalten (keine neuen Gutscheine mehr), dann unter **Vibono-Punkte → Module & Anbindung** das Modul **Freunde werben** einschalten. Refer a Friend noch **30 Tage aktiv lassen**: Cookies und laufende Empfehlungen bleiben so nachvollziehbar. Das Vibono-Plugin liest das `raf`-Cookie nicht, wertet aber neue Klicks auf `?raf=`-Links selbst aus.
 5. Nach 30 Tagen Refer a Friend deaktivieren und löschen. Die eigenen Empfehlungs-Seiten/Shortcodes im Theme durch den Block in **Mein Konto → Vibono-Punkte** ersetzen.
 
 **Kontrolle**

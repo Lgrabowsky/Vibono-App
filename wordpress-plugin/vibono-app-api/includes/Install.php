@@ -10,9 +10,8 @@ class Install {
 
 	public static function activate(): void {
 		self::install();
-		// Endpunkt "Mein Konto → Vibono-Punkte" registrieren.
-		add_rewrite_endpoint( 'vibono-punkte', EP_ROOT | EP_PAGES );
-		flush_rewrite_rules( false );
+		// Permalink-Regeln beim nächsten Seitenaufruf neu aufbauen lassen (Reiter "Mein Konto → Vibono-Punkte").
+		delete_option( 'rewrite_rules' );
 	}
 
 	private static function install(): void {
@@ -24,8 +23,13 @@ class Install {
 		update_option( 'vibono_api_db_version', VIBONO_API_DB_VERSION );
 	}
 
+	/**
+	 * Deaktivieren: Cron entfernen und Permalink-Regeln ohne unseren Endpunkt neu aufbauen lassen.
+	 * Daten bleiben erhalten, damit ein erneutes Aktivieren nahtlos weitergeht.
+	 */
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook( 'vibono_points_daily' );
+		delete_option( 'rewrite_rules' );
 	}
 
 	public static function maybe_upgrade(): void {

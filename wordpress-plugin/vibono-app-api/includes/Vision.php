@@ -25,11 +25,18 @@ class Vision {
 		if ( class_exists( '\Anthropic\Client' ) ) {
 			return true;
 		}
+		// Das SDK (und seine Abhängigkeiten) wird nur in Anfragen an die Bildauswertung geladen,
+		// nie beim normalen Seitenaufbau. So kann es keine Bibliotheken anderer Plugins stören.
 		$autoload = VIBONO_API_DIR . 'vendor/autoload.php';
-		if ( is_readable( $autoload ) ) {
-			require_once $autoload;
+		try {
+			if ( is_readable( $autoload ) ) {
+				require_once $autoload;
+			}
+			return class_exists( '\Anthropic\Client' );
+		} catch ( \Throwable $e ) {
+			Plugin::report( $e, 'Vision SDK' );
+			return false;
 		}
-		return class_exists( '\Anthropic\Client' );
 	}
 
 	/** @return array|\WP_Error [base64, mime] */
@@ -151,6 +158,10 @@ class Vision {
 			return Plugin::error( 'vibono_vision_unavailable', 'Die Bildauswertung ist gerade nicht verfügbar.', 503 );
 		} catch ( \Anthropic\Core\Exceptions\APIConnectionException $e ) {
 			return Plugin::error( 'vibono_vision_unavailable', 'Die Bildauswertung ist gerade nicht erreichbar.', 503 );
+		} catch ( \Throwable $e ) {
+			// z. B. Versionskonflikt mit einer Bibliothek eines anderen Plugins.
+			Plugin::report( $e, 'Vision' );
+			return Plugin::error( 'vibono_vision_unavailable', 'Die Bildauswertung ist gerade nicht verfügbar.', 503 );
 		}
 
 		if ( 'refusal' === $message->stopReason ) {

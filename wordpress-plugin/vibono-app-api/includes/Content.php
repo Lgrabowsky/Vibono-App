@@ -24,7 +24,7 @@ class Content {
 	);
 
 	public static function init(): void {
-		add_action( 'transition_post_status', array( self::class, 'track_removed' ), 10, 3 );
+		Plugin::hook( 'transition_post_status', array( self::class, 'track_removed' ), 10, 3 );
 	}
 
 	public static function post_type( string $kind ): string {

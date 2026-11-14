@@ -48,6 +48,7 @@ class Admin {
 			'campaigns' => 'Aktionen',
 			'adjust'    => 'Punkte buchen',
 			'app'       => 'App-Schnittstelle',
+			'modules'   => 'Module & Anbindung',
 		);
 		echo '<div class="wrap"><h1>Vibono-Punkte</h1>';
 		if ( isset( $_GET['msg'] ) ) { // phpcs:ignore
@@ -138,7 +139,6 @@ class Admin {
 
 	private static function tab_rules(): void {
 		self::form_start( 'rules' );
-		self::field( 'points_enabled', 'Punktesystem aktiv', 'checkbox' );
 		self::field( 'cents_per_point', 'Wert eines Punktes (Cent)', 'number', 'Umrechnungskurs. Start: 1 Punkt = 1 Cent. Gilt sofort für alle neuen Einlösungen.' );
 		echo '<tr><th colspan="2"><h2>Punkte verdienen</h2></th></tr>';
 		self::field( 'earn_app_open', 'App täglich öffnen', 'number', 'Punkte einmal pro Kalendertag.' );
@@ -205,6 +205,28 @@ class Admin {
 		self::form_end();
 	}
 
+	// ---------------------------------------------------- Module & Anbindung
+
+	private static function tab_modules(): void {
+		echo '<p style="max-width:760px">Jedes Modul lässt sich einzeln ein- und ausschalten. Ausgeschaltete Module ändern nichts an Website, Shop oder Theme. Empfohlene Reihenfolge und Rückbau: <code>docs/ANBINDUNG.md</code> im Plugin-Ordner.</p>';
+		self::form_start( 'modules' );
+		self::field( 'module_api', 'App-Schnittstelle', 'checkbox', 'Login, Synchronisation und Inhalte für die App unter /wp-json/vibono/v1. Auf der Website nicht sichtbar.' );
+		self::field( 'points_enabled', 'Punkte vergeben', 'checkbox', 'Hauptschalter für alle Punkte (App, Lesen, Shop, Werben).' );
+		self::field( 'module_shop', 'Punkte im Shop', 'checkbox', 'Punkte für Einkäufe, Einlösen im Warenkorb, Hinweis auf Produktseiten, Reiter „Vibono-Punkte“ in Mein Konto.' );
+		self::field( 'module_referral', 'Freunde werben', 'checkbox', 'Empfehlungslinks (?vref=…) und Prämien für erste Bestellungen. Erst einschalten, wenn Refer a Friend abgeschaltet ist oder die Übernahme geplant ist.' );
+		self::field( 'module_web_reading', 'Lesepunkte auf der Website', 'checkbox', 'Lädt ein kleines Skript auf belohnten Beitragsseiten für eingeloggte Nutzer*innen.' );
+		self::field( 'myvibono_write', 'MyVibono-Daten auf die Website schreiben', 'checkbox', 'Aus = das Plugin liest die MyVibono-Felder des Themes nur. Erst einschalten, wenn die Speicherorte geprüft sind. Vor dem ersten Schreiben wird der alte Wert gesichert.' );
+		self::field( 'delete_data_on_uninstall', 'Beim Löschen des Plugins alle Daten entfernen', 'checkbox', 'Aus = Tabellen und Punktestände bleiben beim Löschen erhalten. Vorher sichern: wp vibono export-points.' );
+		self::form_end();
+
+		echo '<h2>Systemprüfung</h2><table class="widefat striped" style="max-width:960px"><tbody>';
+		$icons = array( 'ok' => '✅', 'warn' => '⚠️', 'error' => '❌', 'info' => 'ℹ️' );
+		foreach ( Health::checks() as $c ) {
+			printf( '<tr><td style="width:2em">%s</td><td style="width:16em"><strong>%s</strong></td><td>%s</td></tr>', esc_html( $icons[ $c['status'] ] ?? '' ), esc_html( $c['label'] ), esc_html( $c['detail'] ) );
+		}
+		echo '</tbody></table>';
+	}
+
 	public static function save_settings(): void {
 		self::guard( 'vibono_save_settings' );
 		$in       = (array) wp_unslash( $_POST['s'] ?? array() ); // phpcs:ignore
@@ -246,8 +268,13 @@ class Admin {
 			wp_safe_redirect( self::url( 'rules', array( 'msg' => 'Der Wert eines Punktes muss größer als 0 sein.', 'err' => 1 ) ) );
 			exit;
 		}
-		$old = (float) Settings::get( 'cents_per_point' );
+		$old      = (float) Settings::get( 'cents_per_point' );
+		$old_shop = Settings::on( 'module_shop' );
 		Settings::update( $out );
+		if ( isset( $out['module_shop'] ) && $out['module_shop'] !== $old_shop ) {
+			// Reiter "Mein Konto → Vibono-Punkte" kommt oder geht: Permalink-Regeln neu aufbauen lassen.
+			delete_option( 'rewrite_rules' );
+		}
 		if ( isset( $out['cents_per_point'] ) && $out['cents_per_point'] !== $old ) {
 			// Kursänderungen nachvollziehbar protokollieren.
 			$log   = (array) get_option( 'vibono_points_rate_log', array() );

@@ -21,34 +21,48 @@ class WooCommerce {
 	const SESSION  = 'vibono_redeem_points';
 	const ENDPOINT = 'vibono-punkte';
 
+	/** Punkte im Shop sammeln und einlösen (Modul "Shop"). */
+	public static function shop_on(): bool {
+		return Settings::on( 'module_shop' ) && (bool) Settings::get( 'points_enabled' );
+	}
+
 	public static function init(): void {
-		// Verdienen.
-		add_action( 'woocommerce_order_status_processing', array( self::class, 'on_paid' ) );
-		add_action( 'woocommerce_order_status_completed', array( self::class, 'on_paid' ) );
-		add_action( 'woocommerce_order_status_completed', array( self::class, 'on_completed' ), 20 );
+		// Buchhaltung, immer aktiv: berührt nur Vibono-Daten. So werden Punkte zu Bestellungen auch dann
+		// korrekt bestätigt, abgebucht oder zurückgebucht, wenn ein Modul später abgeschaltet wird.
+		Plugin::hook( 'woocommerce_order_status_completed', array( self::class, 'on_completed' ), 20 );
 		foreach ( array( 'cancelled', 'refunded', 'failed' ) as $status ) {
-			add_action( 'woocommerce_order_status_' . $status, array( self::class, 'on_reversed' ) );
+			Plugin::hook( 'woocommerce_order_status_' . $status, array( self::class, 'on_reversed' ) );
+		}
+		Plugin::hook( 'woocommerce_checkout_order_created', array( self::class, 'on_order_created' ) );
+		Plugin::hook( 'woocommerce_store_api_checkout_order_processed', array( self::class, 'on_order_created' ) );
+
+		// Punkte für bezahlte Bestellungen (Einkauf und/oder Empfehlung).
+		if ( self::shop_on() || Settings::on( 'module_referral' ) ) {
+			Plugin::hook( 'woocommerce_order_status_processing', array( self::class, 'on_paid' ) );
+			Plugin::hook( 'woocommerce_order_status_completed', array( self::class, 'on_paid' ) );
 		}
 
-		// Werbende Person beim Anlegen der Bestellung festhalten (Cookie ist nur hier verfügbar).
-		add_action( 'woocommerce_checkout_order_created', array( self::class, 'on_order_created' ) );
-		add_action( 'woocommerce_store_api_checkout_order_processed', array( self::class, 'on_order_created' ) );
+		if ( ! self::shop_on() ) {
+			return;
+		}
 
 		// Einlösen.
-		add_filter( 'woocommerce_get_shop_coupon_data', array( self::class, 'virtual_coupon' ), 10, 2 );
-		add_action( 'woocommerce_before_calculate_totals', array( self::class, 'sync_coupon' ), 20 );
-		add_action( 'woocommerce_cart_totals_before_order_total', array( self::class, 'render_redeem_box' ) );
-		add_action( 'woocommerce_review_order_before_order_total', array( self::class, 'render_redeem_box' ) );
-		add_action( 'wp_loaded', array( self::class, 'handle_redeem_form' ), 30 );
-		add_filter( 'woocommerce_cart_totals_coupon_label', array( self::class, 'coupon_label' ), 10, 2 );
-		add_action( 'woocommerce_after_checkout_validation', array( self::class, 'validate_checkout' ), 10, 2 );
-		add_action( 'woocommerce_checkout_create_order', array( self::class, 'store_redeem_on_order' ) );
+		Plugin::hook( 'woocommerce_get_shop_coupon_data', array( self::class, 'virtual_coupon' ), 10, 2 );
+		Plugin::hook( 'woocommerce_before_calculate_totals', array( self::class, 'sync_coupon' ), 20 );
+		Plugin::hook( 'woocommerce_cart_totals_before_order_total', array( self::class, 'render_redeem_box' ) );
+		Plugin::hook( 'woocommerce_review_order_before_order_total', array( self::class, 'render_checkout_row' ) );
+		Plugin::hook( 'wp_loaded', array( self::class, 'handle_redeem_form' ), 30 );
+		Plugin::hook( 'woocommerce_cart_totals_coupon_label', array( self::class, 'coupon_label' ), 10, 2 );
+		Plugin::hook( 'woocommerce_after_checkout_validation', array( self::class, 'validate_checkout' ), 10, 2 );
+		Plugin::hook( 'woocommerce_checkout_create_order', array( self::class, 'store_redeem_on_order' ) );
+		Plugin::hook( 'woocommerce_store_api_checkout_update_order_meta', array( self::class, 'store_redeem_on_order' ) );
 
 		// Anzeige.
-		add_action( 'woocommerce_single_product_summary', array( self::class, 'product_hint' ), 25 );
-		add_action( 'init', array( self::class, 'add_endpoint' ) );
-		add_filter( 'woocommerce_account_menu_items', array( self::class, 'account_menu' ) );
-		add_action( 'woocommerce_account_' . self::ENDPOINT . '_endpoint', array( self::class, 'account_page' ) );
+		Plugin::hook( 'woocommerce_single_product_summary', array( self::class, 'product_hint' ), 25 );
+		Plugin::hook( 'init', array( self::class, 'add_endpoint' ) );
+		Plugin::hook( 'woocommerce_get_query_vars', array( self::class, 'query_vars' ) );
+		Plugin::hook( 'woocommerce_account_menu_items', array( self::class, 'account_menu' ) );
+		Plugin::hook( 'woocommerce_account_' . self::ENDPOINT . '_endpoint', array( self::class, 'account_page' ) );
 	}
 
 	// ------------------------------------------------------------ Verdienen
@@ -63,7 +77,7 @@ class WooCommerce {
 			return;
 		}
 		$uid = (int) $order->get_customer_id();
-		if ( $uid ) {
+		if ( $uid && self::shop_on() ) {
 			$points = PointsMath::purchase_points( self::goods_cents( $order ), (float) Settings::get( 'earn_purchase_per_euro' ) );
 			if ( $points > 0 ) {
 				// Basis ist "Punkte je Euro"; Points::earn multipliziert mit Aktionen.
@@ -82,7 +96,9 @@ class WooCommerce {
 				);
 			}
 		}
-		Referral::on_order_paid( $order );
+		if ( Settings::on( 'module_referral' ) && Settings::get( 'points_enabled' ) ) {
+			Referral::on_order_paid( $order );
+		}
 		if ( 'completed' === $order->get_status() ) {
 			self::on_completed( $order_id );
 		}
@@ -100,7 +116,8 @@ class WooCommerce {
 		}
 		Points::void_ref( 'order', (int) $order_id, array( 'purchase', 'referral', 'referral_friend' ) );
 		$redeemed = (int) $order->get_meta( '_vibono_points_redeemed' );
-		if ( $redeemed > 0 && $order->get_customer_id() && ! Points::has_key( 'redeem_refund:' . $order_id ) ) {
+		// Nur zurückbuchen, was wirklich abgebucht wurde, und nur einmal.
+		if ( $redeemed > 0 && $order->get_customer_id() && Points::has_key( 'redeem:' . $order_id ) && ! Points::has_key( 'redeem_refund:' . $order_id ) ) {
 			Points::book(
 				(int) $order->get_customer_id(),
 				$redeemed,
@@ -111,6 +128,46 @@ class WooCommerce {
 		}
 	}
 
+	/**
+	 * Holt Buchungen für eine Bestellung nach, deren Status sich geändert hat, während das Plugin
+	 * deaktiviert oder per VIBONO_API_DISABLE abgeschaltet war. Mehrfach ausführbar.
+	 *
+	 * @return string Was getan wurde (leer = nichts nötig).
+	 */
+	public static function reconcile_order( \WC_Order $order, bool $dry = false ): string {
+		global $wpdb;
+		$t      = Install::table( 'points_ledger' );
+		$id     = (int) $order->get_id();
+		$status = $order->get_status();
+		if ( in_array( $status, array( 'cancelled', 'refunded', 'failed' ), true ) ) {
+			$active   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ref_type = 'order' AND ref_id = %d AND status IN ('pending','confirmed') AND reason IN ('purchase','referral','referral_friend')", $id ) );
+			$redeemed = (int) $order->get_meta( '_vibono_points_redeemed' );
+			$refund   = $redeemed > 0 && Points::has_key( 'redeem:' . $id ) && ! Points::has_key( 'redeem_refund:' . $id );
+			if ( ! $active && ! $refund ) {
+				return '';
+			}
+			if ( ! $dry ) {
+				self::on_reversed( $id );
+			}
+			return sprintf( '%s: %d Gutschriften storniert%s', $status, $active, $refund ? ', ' . $redeemed . ' eingelöste Punkte zurückgebucht' : '' );
+		}
+		if ( 'completed' === $status ) {
+			// Frist läuft ab "abgeschlossen". Platzhalter (sehr ferne Bestätigung) durch das echte Datum ersetzen.
+			$days  = (int) Settings::get( 'pending_days' );
+			$limit = gmdate( 'Y-m-d H:i:s', time() + ( $days + 1 ) * DAY_IN_SECONDS );
+			$open  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ref_type = 'order' AND ref_id = %d AND status = 'pending' AND confirms_at > %s", $id, $limit ) );
+			if ( ! $open ) {
+				return '';
+			}
+			if ( ! $dry ) {
+				$done = $order->get_date_completed() ? $order->get_date_completed()->getTimestamp() : time();
+				Points::set_confirm_at( 'order', $id, $done + DAY_IN_SECONDS * $days );
+			}
+			return sprintf( 'abgeschlossen: Frist für %d vorgemerkte Buchungen gesetzt', $open );
+		}
+		return '';
+	}
+
 	public static function on_order_created( $order ): void {
 		if ( ! $order instanceof \WC_Order ) {
 			$order = wc_get_order( $order );
@@ -118,9 +175,12 @@ class WooCommerce {
 		if ( ! $order ) {
 			return;
 		}
-		Referral::referrer_for_order( $order );
+		if ( Settings::on( 'module_referral' ) ) {
+			// Speichert nur die eigenen Meta-Felder, kein erneutes $order->save() mit allen Folge-Hooks.
+			Referral::referrer_for_order( $order );
+			$order->save_meta_data();
+		}
 		self::deduct_redeemed( $order );
-		$order->save();
 	}
 
 	// ------------------------------------------------------------ Einlösen
@@ -133,7 +193,7 @@ class WooCommerce {
 	private static function cart_goods_cents( \WC_Cart $cart ): int {
 		$total = 0.0;
 		foreach ( $cart->get_cart() as $item ) {
-			$total += (float) $item['line_subtotal'] + (float) $item['line_subtotal_tax'];
+			$total += (float) ( $item['line_subtotal'] ?? 0 ) + (float) ( $item['line_subtotal_tax'] ?? 0 );
 		}
 		foreach ( $cart->get_coupon_discount_totals() as $code => $amount ) {
 			if ( self::COUPON !== $code ) {
@@ -175,22 +235,39 @@ class WooCommerce {
 		);
 	}
 
-	/** Gutschein passend zur Session an- oder abmelden. */
-	public static function sync_coupon( \WC_Cart $cart ): void {
-		static $running = false;
-		if ( $running || ! is_user_logged_in() ) {
+	/** Anderer Gutschein im Warenkorb, der nur allein gilt ("Individuelle Nutzung")? */
+	private static function blocked_by_individual_coupon( \WC_Cart $cart ): string {
+		foreach ( $cart->get_applied_coupons() as $code ) {
+			if ( self::COUPON !== $code && ( new \WC_Coupon( $code ) )->get_individual_use() ) {
+				return (string) $code;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Gutschein passend zur Session leise an- oder abmelden. Bewusst ohne apply_coupon():
+	 * das würde eine Erfolgsmeldung erzeugen, und deren Löschen würde fremde Shop-Hinweise mitlöschen.
+	 */
+	public static function sync_coupon( $cart ): void {
+		if ( ! $cart instanceof \WC_Cart || ! is_user_logged_in() ) {
 			return;
 		}
-		$running = true;
+		$applied = $cart->get_applied_coupons();
+		$has     = in_array( self::COUPON, $applied, true );
 		$want    = self::requested_points() > 0;
-		$has     = $cart->has_discount( self::COUPON );
-		if ( $want && ! $has ) {
-			$cart->apply_coupon( self::COUPON );
-			wc_clear_notices();
-		} elseif ( ! $want && $has ) {
-			$cart->remove_coupon( self::COUPON );
+		// Nicht mehr einlösbar (anderer Gutschein "nur allein", Punktestand oder Warenkorb geändert):
+		// Einlösung still zurücknehmen, statt WooCommerce einen ungültigen Gutschein melden zu lassen.
+		if ( $want && ( self::blocked_by_individual_coupon( $cart ) || self::calc( $cart, get_current_user_id(), self::requested_points() )['points'] <= 0 ) ) {
+			WC()->session->set( self::SESSION, 0 );
+			$want = false;
 		}
-		$running = false;
+		if ( $want && ! $has ) {
+			$applied[] = self::COUPON;
+			$cart->set_applied_coupons( $applied );
+		} elseif ( ! $want && $has ) {
+			$cart->set_applied_coupons( array_values( array_diff( $applied, array( self::COUPON ) ) ) );
+		}
 	}
 
 	public static function coupon_label( $label, $coupon ) {
@@ -212,6 +289,11 @@ class WooCommerce {
 			WC()->session->set( self::SESSION, 0 );
 			return;
 		}
+		$blocking = self::blocked_by_individual_coupon( WC()->cart );
+		if ( $blocking ) {
+			wc_add_notice( sprintf( 'Vibono-Punkte können nicht zusammen mit dem Gutschein „%s“ eingelöst werden.', $blocking ), 'error' );
+			return;
+		}
 		$requested = absint( $_POST['vibono_redeem_points'] ?? 0 );
 		$calc      = self::calc( WC()->cart, get_current_user_id(), $requested );
 		if ( $calc['error'] ) {
@@ -230,8 +312,12 @@ class WooCommerce {
 		}
 	}
 
+	/**
+	 * Einlösefeld im Warenkorb. Die Summen-Box liegt im klassischen Warenkorb außerhalb des
+	 * Warenkorb-Formulars, deshalb ist ein eigenes Formular hier zulässig.
+	 */
 	public static function render_redeem_box(): void {
-		if ( ! is_user_logged_in() || ! Settings::get( 'points_enabled' ) ) {
+		if ( ! is_user_logged_in() || ! WC()->cart ) {
 			return;
 		}
 		$uid     = get_current_user_id();
@@ -258,6 +344,25 @@ class WooCommerce {
 		echo '</form></td></tr>';
 	}
 
+	/**
+	 * Kasse: nur eine Info-Zeile mit Link zum Warenkorb. Ein Formular ginge hier nicht, weil die
+	 * Bestellübersicht im Kassen-Formular liegt (verschachtelte Formulare würden die Bestellung absenden).
+	 */
+	public static function render_checkout_row(): void {
+		if ( ! is_user_logged_in() || self::requested_points() ) {
+			return; // Eingelöste Punkte stehen schon als Gutschein-Zeile in der Übersicht.
+		}
+		$balance = Points::balance( get_current_user_id() );
+		if ( $balance < (int) Settings::get( 'min_redeem_points' ) ) {
+			return;
+		}
+		printf(
+			'<tr class="vibono-points"><th>Vibono-Punkte</th><td>Du hast %s Punkte. <a href="%s">Im Warenkorb einlösen</a></td></tr>',
+			esc_html( number_format_i18n( $balance ) ),
+			esc_url( wc_get_cart_url() )
+		);
+	}
+
 	/** Vor dem Bestellen: Ist die Einlösung noch gedeckt? */
 	public static function validate_checkout( $data, $errors ): void {
 		$req = self::requested_points();
@@ -271,9 +376,9 @@ class WooCommerce {
 		}
 	}
 
-	public static function store_redeem_on_order( \WC_Order $order ): void {
+	public static function store_redeem_on_order( $order ): void {
 		$req = self::requested_points();
-		if ( ! $req || ! $order->get_customer_id() ) {
+		if ( ! $order instanceof \WC_Order || ! $req || ! $order->get_customer_id() || ! WC()->cart ) {
 			return;
 		}
 		$calc = self::calc( WC()->cart, (int) $order->get_customer_id(), $req );
@@ -308,7 +413,7 @@ class WooCommerce {
 
 	public static function product_hint(): void {
 		global $product;
-		if ( ! $product || ! Settings::get( 'points_enabled' ) ) {
+		if ( ! $product instanceof \WC_Product ) {
 			return;
 		}
 		$base = PointsMath::purchase_points( (int) round( (float) wc_get_price_including_tax( $product ) * 100 ), (float) Settings::get( 'earn_purchase_per_euro' ) );
@@ -322,7 +427,15 @@ class WooCommerce {
 		add_rewrite_endpoint( self::ENDPOINT, EP_ROOT | EP_PAGES );
 	}
 
-	public static function account_menu( array $items ): array {
+	public static function query_vars( $vars ) {
+		$vars[ self::ENDPOINT ] = self::ENDPOINT;
+		return $vars;
+	}
+
+	public static function account_menu( $items ) {
+		if ( ! is_array( $items ) ) {
+			return $items;
+		}
 		$out = array();
 		foreach ( $items as $k => $v ) {
 			if ( 'customer-logout' === $k ) {

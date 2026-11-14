@@ -67,7 +67,7 @@ class AuthController extends Controller {
 			return Plugin::error( 'vibono_register_failed', $uid->get_error_message(), 400 );
 		}
 		update_user_meta( $uid, '_vibono_privacy_consent', array( 'at' => gmdate( 'c' ), 'channel' => 'app', 'health_data' => true ) );
-		if ( $r['referral_code'] ) {
+		if ( $r['referral_code'] && ReferralController::enabled() ) {
 			Referral::attach( (int) $uid, Referral::user_by_code( (string) $r['referral_code'] ) );
 		}
 		$user = get_userdata( $uid );

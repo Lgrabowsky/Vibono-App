@@ -15,6 +15,16 @@ class Settings {
 
 	public static function defaults(): array {
 		return array(
+			// --- Module ---------------------------------------------------
+			// Schalter für eine schrittweise Einführung. Ausgeschaltete Module registrieren keine
+			// Hooks und ändern nichts an Website, Shop oder Theme (siehe docs/ANBINDUNG.md).
+			'module_api'                => true,  // App-Schnittstelle unter /wp-json/vibono/v1 (nur für die App sichtbar).
+			'module_shop'               => false, // Punkte im Shop sammeln/einlösen, Hinweis am Produkt, Reiter in "Mein Konto".
+			'module_referral'           => false, // Freunde werben. Erst einschalten, wenn Refer a Friend abgeschaltet ist.
+			'module_web_reading'        => false, // Lese-Nachweis und Lesepunkte auf der Website (Skript auf Beitragsseiten).
+			'myvibono_write'            => false, // App-Änderungen in die MyVibono-Felder des Themes schreiben (sonst nur lesen).
+			'delete_data_on_uninstall'  => false, // Beim Löschen des Plugins alle Vibono-Daten entfernen (inkl. Punktestände).
+
 			// --- Punkte ---------------------------------------------------
 			'points_enabled'            => true,
 			'cents_per_point'           => 1.0,   // 1 Punkt = 1 Cent (Vorgabe Vibono).
@@ -107,6 +117,11 @@ class Settings {
 	public static function get( string $key ) {
 		$all = self::all();
 		return apply_filters( 'vibono_api_setting', $all[ $key ] ?? null, $key );
+	}
+
+	/** Ist ein Modul eingeschaltet? Module können per Filter "vibono_api_setting" erzwungen werden. */
+	public static function on( string $module ): bool {
+		return (bool) self::get( $module );
 	}
 
 	public static function update( array $values ): void {

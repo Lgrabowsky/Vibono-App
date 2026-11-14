@@ -25,8 +25,8 @@ class Referral {
 	const ORDER_META    = '_vibono_referrer';
 
 	public static function init(): void {
-		add_action( 'init', array( self::class, 'capture_param' ), 5 );
-		add_action( 'user_register', array( self::class, 'on_register' ), 20 );
+		Plugin::hook( 'init', array( self::class, 'capture_param' ), 5 );
+		Plugin::hook( 'user_register', array( self::class, 'on_register' ), 20 );
 	}
 
 	// -------------------------------------------------------------- Codes
@@ -81,6 +81,24 @@ class Referral {
 	}
 
 	// --------------------------------------------------- Link und Cookie
+
+	/**
+	 * Läuft WPGens Refer a Friend noch? Für die Warnung in der Systemprüfung: Ist "Freunde werben" an,
+	 * übernimmt das Punktesystem auch alte ?raf-Links. Refer a Friend darf dann keine Belohnungen mehr
+	 * vergeben, sonst gäbe es doppelte Prämien. ANNAHME: Plugin-Ordner enthält "gens-raf" oder "refer-a-friend".
+	 */
+	public static function legacy_plugin_active(): bool {
+		$active = (array) get_option( 'active_plugins', array() );
+		if ( is_multisite() ) {
+			$active = array_merge( $active, array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) ) );
+		}
+		foreach ( $active as $plugin ) {
+			if ( preg_match( '/gens-raf|refer-a-friend|wpgens/i', (string) $plugin ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	public static function capture_param(): void {
 		$params = array_merge( array( (string) Settings::get( 'referral_param' ) ), (array) Settings::get( 'referral_legacy_params' ) );
@@ -221,7 +239,7 @@ class Referral {
 				)
 			);
 		}
-		$order->save();
+		$order->save_meta_data();
 	}
 
 	// ------------------------------------------------------------ Zähler

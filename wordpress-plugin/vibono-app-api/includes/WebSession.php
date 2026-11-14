@@ -18,7 +18,7 @@ class WebSession {
 	const TTL   = 120;
 
 	public static function init(): void {
-		add_action( 'init', array( self::class, 'consume' ), 1 );
+		Plugin::hook( 'init', array( self::class, 'consume' ), 1 );
 	}
 
 	public static function create( int $user_id, string $redirect ): array {

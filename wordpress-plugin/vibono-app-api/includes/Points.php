@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
 class Points {
 
 	public static function init(): void {
-		add_action( 'vibono_points_daily', array( self::class, 'confirm_due' ) );
+		Plugin::hook( 'vibono_points_daily', array( self::class, 'confirm_due' ) );
 	}
 
 	// ------------------------------------------------------------------ Lesen

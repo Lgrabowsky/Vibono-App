@@ -16,6 +16,9 @@ class ConfigController extends Controller {
 		$links    = 'web' === $platform
 			? array( 'physical_products' => true, 'memberships' => true, 'points_redemption' => true )
 			: array_map( 'boolval', (array) Settings::get( 'shop_links_' . $platform ) );
+		$shop     = Settings::on( 'module_shop' ) && (bool) Settings::get( 'points_enabled' );
+		// Ohne Modul "Punkte im Shop" gibt es im Shop nichts einzulösen.
+		$links['points_redemption'] = ! empty( $links['points_redemption'] ) && $shop;
 		$any      = in_array( true, $links, true );
 		$resp     = new \WP_REST_Response(
 			array(
@@ -29,6 +32,11 @@ class ConfigController extends Controller {
 				'shop_url'        => $any ? (string) Settings::get( 'shop_url' ) : null,
 				'points_enabled'  => (bool) Settings::get( 'points_enabled' ),
 				'cents_per_point' => (float) Settings::get( 'cents_per_point' ),
+				'features'        => array(
+					'referral'    => ReferralController::enabled(),
+					'shop_points' => $shop,
+					'web_reading' => Settings::on( 'module_web_reading' ) && (bool) Settings::get( 'points_enabled' ),
+				),
 				'support_url'     => (string) Settings::get( 'support_url' ),
 				'privacy_url'     => (string) Settings::get( 'privacy_url' ),
 			)
