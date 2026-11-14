@@ -120,6 +120,7 @@ Startseite, ein Produkt, Warenkorb, Kasse und Mein Konto aufrufen. Optional Eins
 ## 8. Noch offen für die Anbindung
 
 - Theme-Code `wp-content/themes/vibono` für die MyVibono-Speicherorte, die Lektionsart und die Kurse je Phase.
+- Wo die Rezept-Zutaten und Portionen gespeichert sind (für die Einkaufsliste der App). Das Plugin liest sie nur.
 - Nutzt vibono.de den klassischen Warenkorb oder den Block-Warenkorb? Das Einlösefeld erscheint im klassischen Warenkorb (`[woocommerce_cart]`). Für den Block-Warenkorb wäre eine Erweiterung nötig.
 - Liste der aktiven Sicherheits- und Cache-Plugins (Ausnahme für `/wp-json/vibono/`).
 - Cookie-Banner und Datenschutzerklärung (Cookie `vibono_ref`, App, Bildauswertung).

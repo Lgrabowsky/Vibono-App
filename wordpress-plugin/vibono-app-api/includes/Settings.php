@@ -65,6 +65,8 @@ class Settings {
 			'food_post_type'            => 'energiedichte',
 			'food_kcal_meta_key'        => 'kcal',    // ANNAHME.
 			'recipe_ed_meta_key'        => 'energiedichte', // ANNAHME.
+			'recipe_ingredients_meta_key' => '',      // Leer = automatisch (WP Recipe Maker, sonst "zutaten"/"ingredients"). ANNAHME.
+			'recipe_servings_meta_key'  => '',        // Leer = automatisch ("portionen"/"servings"). ANNAHME.
 			'phase_terms'               => array(
 				'vorbereitung' => array(),
 				'phase1'       => array(),

@@ -68,6 +68,16 @@ class Health {
 		$mode = Settings::on( 'myvibono_write' ) ? 'lesen und schreiben' : 'nur lesen';
 		$add( 'MyVibono-Speicherorte', $keys ? 'ok' : 'info', $keys ? count( $keys ) . ' von 6 eingetragen (' . implode( ', ', $keys ) . '), ' . $mode : 'keine eingetragen: App-Daten liegen nur im Plugin, die Website sieht sie nicht' );
 
+		// --- Rezept-Zutaten (Einkaufsliste) ---------------------------------
+		$sample = get_posts( array( 'post_type' => (string) Settings::get( 'recipe_post_type' ), 'post_status' => 'publish', 'posts_per_page' => 20, 'no_found_rows' => true ) );
+		$found  = 0;
+		foreach ( $sample as $p ) {
+			if ( Recipes::data( $p )['ingredients'] ) {
+				++$found;
+			}
+		}
+		$add( 'Rezept-Zutaten', $sample && $found === count( $sample ) ? 'ok' : ( $found ? 'warn' : 'info' ), $sample ? sprintf( 'bei %d von %d Rezepten (Stichprobe) erkannt', $found, count( $sample ) ) . ( $found < count( $sample ) ? '. Feld unter App-Schnittstelle → „Feld Rezept-Zutaten“ eintragen.' : '' ) : 'keine Rezepte gefunden' );
+
 		// --- Energiedichte --------------------------------------------------
 		$key = '' !== Settings::anthropic_key();
 		$sdk = is_readable( VIBONO_API_DIR . 'vendor/autoload.php' );

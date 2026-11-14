@@ -103,17 +103,25 @@ class SyncRules {
 				if ( 'delete' === $op ) {
 					return array( array( 'date' => $m[1], 'slot' => $m[2] ), null );
 				}
+				$data   = is_array( $data ) ? $data : array();
 				$recipe = isset( $data['recipe_id'] ) ? (int) $data['recipe_id'] : null;
 				$note   = mb_substr( trim( (string) ( $data['note'] ?? '' ) ), 0, 500 );
-				if ( ! $recipe && '' === $note ) {
-					return array( null, 'invalid_weekplan' );
+				// Portionen (1–12), für die eingekauft und gekocht wird. Fehlt der Wert, gilt die Rezeptangabe.
+				$portions = null;
+				if ( isset( $data['portions'] ) ) {
+					if ( ! is_numeric( $data['portions'] ) || (int) $data['portions'] != $data['portions'] || $data['portions'] < 1 || $data['portions'] > 12 ) { // phpcs:ignore
+						return array( null, 'invalid_weekplan' );
+					}
+					$portions = (int) $data['portions'];
 				}
+				// Ohne Rezept und ohne Notiz: Platz bewusst frei (die App schlägt dort nichts vor).
 				return array(
 					array(
 						'date'      => $m[1],
 						'slot'      => $m[2],
 						'recipe_id' => $recipe ?: null,
 						'note'      => $note,
+						'portions'  => $portions,
 					),
 					null,
 				);

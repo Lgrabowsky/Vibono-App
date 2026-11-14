@@ -175,6 +175,8 @@ class Admin {
 		self::field( 'food_post_type', 'Inhaltstyp Lebensmittel (Energiedichte)', 'text' );
 		self::field( 'food_kcal_meta_key', 'Meta-Feld kcal/100 g', 'text', 'ANNAHME' );
 		self::field( 'recipe_ed_meta_key', 'Meta-Feld Energiedichte Rezept', 'text', 'ANNAHME' );
+		self::field( 'recipe_ingredients_meta_key', 'Feld Rezept-Zutaten', 'text', 'Für die Einkaufsliste der App. Leer = automatisch: WP Recipe Maker, sonst Felder „zutaten“ oder „ingredients“ (ACF-Wiederholer oder Text, eine Zutat je Zeile).' );
+		self::field( 'recipe_servings_meta_key', 'Feld Portionen', 'text', 'Leer = automatisch: „portionen“ oder „servings“.' );
 		$phases = (array) Settings::get( 'phase_terms' );
 		foreach ( array( 'vorbereitung' => 'Vorbereitung', 'phase1' => 'Phase 1 (Umstellungstage)', 'phase2' => 'Phase 2', 'phase3' => 'Phase 3' ) as $k => $l ) {
 			printf( '<tr><th>Kurse %s</th><td><input type="text" class="regular-text" name="phase_terms[%s]" value="%s"><p class="description">Kurs-IDs (Begriff-IDs), kommagetrennt, z. B. 247, 248</p></td></tr>', esc_html( $l ), esc_attr( $k ), esc_attr( implode( ', ', (array) ( $phases[ $k ] ?? array() ) ) ) );

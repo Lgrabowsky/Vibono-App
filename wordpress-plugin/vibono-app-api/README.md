@@ -42,6 +42,7 @@ Aus dem Quelltext von „Mein Coaching“ abgeleitet, im Backend änderbar:
 | Lektionsart (wichtig, lesen, aufgaben …) | unbekanntes Meta-Feld | Wo speichert das Theme `data-type`? |
 | Kurse je Phase | leer | Kurs-IDs (z. B. 247, 248) den Phasen zuordnen |
 | Speicherorte MyVibono (Favoriten, Gewicht, Sport, Wochenplan, Häkchen) | nur im Plugin | Nutzer-Meta-Schlüssel und Format aus `vibono-ajax.js`/Theme. Für andere Formate gibt es den Filter `vibono_api_myvibono_adapter` |
+| Rezept-Zutaten und Portionen (Einkaufsliste) | automatisch: WP Recipe Maker, sonst Felder `zutaten`/`ingredients` und `portionen`/`servings` (ACF-Wiederholer oder Text, eine Zutat je Zeile) | Wo speichert vibono.de die Zutaten? Systemprüfung zeigt die Trefferquote. Für andere Formate gibt es den Filter `vibono_api_recipe_ingredients` |
 | Rezept-Merkmale | Begriffe `vegetarisch`, `vegan`, `ut-geeignet`, `laktosefrei` … | Taxonomien der Rezepte |
 | Bewegungstipps | Kategorie `bewegung` | |
 | Refer a Friend | Nutzer-Meta `gens_referral_id`, Parameter `raf` | siehe Migrationskonzept |

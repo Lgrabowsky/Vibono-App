@@ -3,6 +3,7 @@ namespace Vibono\AppApi;
 
 use Vibono\AppApi\Core\CoachingCalendar;
 use Vibono\AppApi\Core\ReadingRules;
+use Vibono\AppApi\Core\SyncRules;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -90,6 +91,8 @@ class Content {
 		$ed     = 'recipe' === $kind && $ed_key ? get_post_meta( $p->ID, $ed_key, true ) : '';
 		$words  = Reading::eligible( $p->ID ) ? Reading::word_count( $p->ID ) : 0;
 		$thumb  = get_the_post_thumbnail_url( $p, 'medium_large' );
+		// Zutaten nur für freigeschaltete Rezepte (sonst wäre das Rezept über die Einkaufsliste lesbar).
+		$recipe = 'recipe' === $kind && ! $locked ? Recipes::data( $p ) : array( 'servings' => null, 'ingredients' => null );
 
 		return array(
 			'id'                  => $p->ID,
@@ -101,6 +104,8 @@ class Content {
 			'tags'                => array_values( array_unique( $tags ) ),
 			'lesson_kind'         => $lkind,
 			'course_id'           => $course,
+			'servings'            => $recipe['servings'],
+			'ingredients'         => $recipe['ingredients'],
 			'energy_density'      => is_numeric( str_replace( ',', '.', (string) $ed ) ) ? (float) str_replace( ',', '.', (string) $ed ) : null,
 			'reading_minutes'     => $words ? max( 1, (int) round( $words / max( 1, (int) Settings::get( 'reading_wpm' ) ) ) ) : null,
 			'points_for_reading'  => $user_id && ! $locked ? Reading::points_for( $user_id, $p->ID ) : 0,
@@ -249,6 +254,26 @@ class Content {
 		return $ids;
 	}
 
+	/** Wochenplan-Einträge eines Tages in fester Reihenfolge der Mahlzeiten. Leer = nichts geplant. */
+	public static function planned_meals( int $user_id, string $date ): array {
+		MyVibonoBridge::reconcile( $user_id, array( 'weekplan' ) );
+		$map = SyncStore::current_map( $user_id, 'weekplan' );
+		$out = array();
+		foreach ( SyncRules::WEEKPLAN_SLOTS as $slot ) {
+			$e = $map[ $date . ':' . $slot ] ?? null;
+			if ( ! is_array( $e ) ) {
+				continue;
+			}
+			$out[] = array(
+				'slot'      => $slot,
+				'recipe_id' => empty( $e['recipe_id'] ) ? null : (int) $e['recipe_id'],
+				'portions'  => isset( $e['portions'] ) ? (int) $e['portions'] : null,
+				'note'      => (string) ( $e['note'] ?? '' ),
+			);
+		}
+		return $out;
+	}
+
 	public static function today( int $user_id, string $date ): array {
 		$goals = Profile::goals( $user_id );
 		$phase = CoachingCalendar::day( $goals['coaching_start_date'], $date, (int) Settings::get( 'phase1_days' ), (int) Settings::get( 'phase2_days' ) );
@@ -292,7 +317,18 @@ class Content {
 			$sections['bewegung'][] = self::summary( get_post( $id ), $user_id, $done );
 		}
 
-		$recipes = array_map( static fn( $id ) => self::summary( get_post( $id ), $user_id ), self::pick( self::recipe_ids_for( $user_id, $phase['key'] ), 3, $seed ) );
+		// Rezepte: was im Wochenplan für diesen Tag steht (bewusst freie Plätze ohne Rezept),
+		// sonst drei Vorschläge passend zu Phase und Ernährung.
+		$planned = self::planned_meals( $user_id, $date );
+		if ( $planned ) {
+			$source  = 'weekplan';
+			$ids     = array_values( array_unique( array_filter( array_column( $planned, 'recipe_id' ) ) ) );
+			$posts   = array_filter( array_map( 'get_post', $ids ), static fn( $p ) => $p instanceof \WP_Post && 'publish' === $p->post_status );
+			$recipes = array_values( array_map( static fn( $p ) => self::summary( $p, $user_id ), $posts ) );
+		} else {
+			$source  = 'suggestion';
+			$recipes = array_map( static fn( $id ) => self::summary( get_post( $id ), $user_id ), self::pick( self::recipe_ids_for( $user_id, $phase['key'] ), 3, $seed ) );
+		}
 
 		$tip_ids = get_posts( array( 'post_type' => self::post_type( 'tip' ), 'post_status' => 'publish', 'posts_per_page' => 60, 'fields' => 'ids', 'no_found_rows' => true ) );
 		$tip     = self::pick( $tip_ids, 1, $seed + 2 );
@@ -316,6 +352,8 @@ class Content {
 			'next_step'      => $open ? self::summary( $open[0], $user_id, $done ) : null,
 			'sections'       => $sections,
 			'recipes'        => $recipes,
+			'recipes_source' => $source,
+			'planned_meals'  => $planned,
 			'vibono_tip'     => $tip ? self::summary( get_post( $tip[0] ), $user_id ) : null,
 			'tip_of_the_day' => $tod ?: array( 'id' => null, 'text' => 'Iss dich satt – mit Genuss statt Verzicht.' ),
 			'points'         => array(

@@ -52,15 +52,19 @@ class MyVibonoBridge {
 			$ours  = SyncStore::current_map( $user_id, $collection );
 			$now   = Plugin::now_ms();
 
-			// Neu oder geändert auf der Website.
+			// Neu oder geändert auf der Website. Felder, die nur die App kennt (z. B. Portionen), bleiben erhalten.
 			foreach ( $theme as $key => $data ) {
-				if ( ! array_key_exists( $key, $ours ) || $ours[ $key ] != $data ) { // phpcs:ignore -- lockerer Vergleich gewollt (Zahlen als String).
+				if ( ! array_key_exists( $key, $ours ) ) {
 					SyncStore::put( $user_id, $collection, (string) $key, $data, false, $now, 'web' );
+				} elseif ( self::theme_view( $collection, $ours[ $key ] ) != self::theme_view( $collection, $data ) ) { // phpcs:ignore -- lockerer Vergleich gewollt (Zahlen als String).
+					SyncStore::put( $user_id, $collection, (string) $key, array_merge( (array) $ours[ $key ], $data ), false, $now, 'web' );
 				}
 			}
-			// Auf der Website entfernt.
-			foreach ( array_diff_key( $ours, $theme ) as $key => $unused ) {
-				SyncStore::put( $user_id, $collection, (string) $key, null, true, $now, 'web' );
+			// Auf der Website entfernt. Einträge, die das Theme gar nicht speichern kann, zählen nicht als entfernt.
+			foreach ( array_diff_key( $ours, $theme ) as $key => $data ) {
+				if ( self::theme_can_store( $collection, $data ) ) {
+					SyncStore::put( $user_id, $collection, (string) $key, null, true, $now, 'web' );
+				}
 			}
 		}
 	}
@@ -74,6 +78,19 @@ class MyVibonoBridge {
 			return;
 		}
 		$adapter->write( $user_id, $collection, self::to_theme( $collection, SyncStore::current_map( $user_id, $collection ) ) );
+	}
+
+	/** Nur die Felder, die das Theme speichert (Vergleichsgrundlage beim Abgleich). */
+	private static function theme_view( string $collection, $data ) {
+		if ( 'weekplan' === $collection && is_array( $data ) ) {
+			unset( $data['portions'] );
+		}
+		return $data;
+	}
+
+	/** Kann das Theme diesen Eintrag überhaupt speichern? Bewusst freie Wochenplan-Plätze kennt es nicht. */
+	private static function theme_can_store( string $collection, $data ): bool {
+		return ! ( 'weekplan' === $collection && is_array( $data ) && empty( $data['recipe_id'] ) && '' === (string) ( $data['note'] ?? '' ) );
 	}
 
 	/**
@@ -133,6 +150,9 @@ class MyVibonoBridge {
 					foreach ( (array) $slots as $slot => $val ) {
 						$recipe = is_array( $val ) ? ( $val['recipe_id'] ?? null ) : $val;
 						$note   = is_array( $val ) ? (string) ( $val['note'] ?? '' ) : '';
+						if ( ! $recipe && '' === $note ) {
+							continue; // Leerer Platz im Theme heißt "nichts geplant", nicht "bewusst frei".
+						}
 						$out[ $date . ':' . $slot ] = array(
 							'date'      => $date,
 							'slot'      => $slot,
@@ -181,6 +201,9 @@ class MyVibonoBridge {
 				break;
 			case 'weekplan':
 				foreach ( $items as $d ) {
+					if ( ! self::theme_can_store( 'weekplan', $d ) ) {
+						continue; // Freie Plätze und Portionen bleiben nur im Plugin.
+					}
 					$out[ $d['date'] ][ $d['slot'] ] = $d['note'] ? array( 'recipe_id' => $d['recipe_id'], 'note' => $d['note'] ) : $d['recipe_id'];
 				}
 				ksort( $out );
