@@ -25,6 +25,12 @@ Punkten, Lese-Nachweis und Energiedichte-Analyse.
 
 Getestet mit Flutter 3.50 / Dart 3.14. Material-Widgets kommen aus `package:material_ui`.
 
+### Test-APK für Android
+
+Bei jedem Push auf `main` oder einen `claude/…`-Branch baut der Workflow `.github/workflows/android-apk.yml`
+eine installierbare APK (Demo-Modus, mit Debug-Schlüssel signiert). Sie liegt im jeweiligen Lauf unter
+**Actions → Android-APK → Artifacts**. Lokal geht es mit `flutter build apk --release`.
+
 ## Was die App kann
 
 | Bereich | Umsetzung |
