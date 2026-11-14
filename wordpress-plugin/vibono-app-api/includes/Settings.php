@@ -77,7 +77,8 @@ class Settings {
 			// --- App / Store-Regeln ---------------------------------------
 			'min_app_version'           => '1.0.0',
 			'shop_url'                  => 'https://www.vibono.de/produkte/',
-			'shop_links_ios'            => array( 'physical_products' => true, 'memberships' => false, 'points_redemption' => true ),
+			// iOS: Punkte-Einlösen-Link standardmäßig aus, weil Apple ihn als Kauf-Link werten kann (siehe docs/APP-STORE.md).
+			'shop_links_ios'            => array( 'physical_products' => true, 'memberships' => false, 'points_redemption' => false ),
 			'shop_links_android'        => array( 'physical_products' => true, 'memberships' => false, 'points_redemption' => true ),
 			'support_url'               => 'https://www.vibono.de/kontakt/',
 			'privacy_url'               => 'https://www.vibono.de/datenschutz/',

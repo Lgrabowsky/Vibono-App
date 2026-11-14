@@ -1,6 +1,6 @@
 # Keine In-App-Käufe: Wie wir Provisionsansprüche von Apple und Google vermeiden
 
-Stand: November 2026, nach meinem Wissensstand. **Kein Rechtsrat.** Die Regeln von Apple und Google und die Auslegung des EU-Gesetzes über digitale Märkte (DMA) ändern sich häufig. Vor dem Einreichen der App bitte von einer auf App-Recht spezialisierten Kanzlei prüfen lassen.
+Stand: November 2026. **Kein Rechtsrat.** Aktuelle Gebühren für Link-outs (USA, EU, Google) stehen in `docs/STORE-RICHTLINIEN.md` der App (PR #2). Die Regeln von Apple und Google und die Auslegung des EU-Gesetzes über digitale Märkte (DMA) ändern sich häufig. Vor dem Einreichen der App bitte von einer auf App-Recht spezialisierten Kanzlei prüfen lassen.
 
 ## Grundprinzip
 
@@ -15,8 +15,8 @@ Provision fällt an, wenn **in der App** digitale Inhalte gekauft werden oder di
 | Inhalt | Apple App Store | Google Play | Umsetzung |
 |---|---|---|---|
 | **Physische Produkte** (Shop-Artikel) | Kauf außerhalb erlaubt, In-App-Kauf darf dafür sogar nicht genutzt werden (Richtlinie 3.1.3(e)/3.1.5) | ausgenommen von der Abrechnungspflicht | Link zum Shop erlaubt (`shop_links.physical_products = true`) |
-| **Punkte einlösen** im Shop | Punkte werden nicht gekauft, sondern verdient; Einlösung für physische Produkte | wie links | Link „Punkte im Shop einlösen“ erlaubt (`points_redemption = true`). Einlösung für Mitgliedschaften nur auf der Website, nicht aus der App beworben |
-| **Mitgliedschaften** (digital) | Verkauf/Link aus der App nur mit In-App-Kauf oder mit Apples Sonderprogrammen und Gebühren (EU: alternative Bedingungen; USA: externe Links seit 2025 provisionsfrei möglich) | Google Play Billing oder Programme für alternative Abrechnung mit reduzierter Gebühr | **Aus** (`memberships = false`). Login für bereits gekaufte Mitgliedschaften ist erlaubt (Multiplattform-Zugriff) |
+| **Punkte einlösen** im Shop | Punkte werden nicht gekauft, sondern verdient. Ein Link „Punkte im Shop einlösen“ kann aber als Kauf-Link gewertet werden, weil im Shop auch Mitgliedschaften liegen | für physische Produkte unkritisch | iOS: **aus** (`points_redemption = false`), Punkte werden in der App nur angezeigt. Android: an. Einlösen geschieht auf vibono.de |
+| **Mitgliedschaften** (digital) | Verkauf/Link aus der App nur mit In-App-Kauf oder über Apples Link-out-Programme, die je nach Region Gebühren kosten | Google Play Billing oder Programme für externe Links/alternative Abrechnung, ebenfalls mit Gebühren | **Aus** (`memberships = false`). Login für bereits gekaufte Mitgliedschaften ist erlaubt (Multiplattform-Zugriff) |
 | Empfehlungslink teilen | erlaubt | erlaubt | Teilen-Button mit Link auf vibono.de |
 
 ## Technische Absicherung im Plugin
@@ -34,6 +34,6 @@ Provision fällt an, wenn **in der App** digitale Inhalte gekauft werden oder di
 
 ## Empfehlung für den Start
 
-1. iOS und Android mit `physical_products = true`, `points_redemption = true`, `memberships = false` einreichen.
+1. iOS mit `physical_products = true`, `points_redemption = false`, `memberships = false` einreichen; Android mit `points_redemption = true`.
 2. In der App-Store-Beschreibung keine Preise oder Kaufaufforderungen für Mitgliedschaften.
-3. Nach der Zulassung prüfen lassen, ob für den US-Store ein Mitgliedschafts-Link sinnvoll ist (dort derzeit provisionsfrei möglich).
+3. Nach der Zulassung prüfen lassen, ob Links je Region (z. B. US-Store) wirtschaftlich sinnvoll sind. Dafür müsste `GET /config` zusätzlich das Land der App-Store-Region auswerten (noch nicht umgesetzt).
