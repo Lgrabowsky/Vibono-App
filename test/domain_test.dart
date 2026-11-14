@@ -5,6 +5,7 @@ import 'package:vibono/data/models/content.dart';
 import 'package:vibono/data/models/energy.dart';
 import 'package:vibono/data/models/profile.dart';
 import 'package:vibono/domain/coaching_plan.dart';
+import 'package:vibono/domain/coaching_progress.dart';
 import 'package:vibono/domain/energy_density.dart';
 import 'package:vibono/domain/goals.dart';
 import 'package:vibono/domain/notification_planner.dart';
@@ -301,16 +302,84 @@ void main() {
         'servings': 2,
         'ingredients': [
           ['Paprika', 300, 31],
-          {'name': 'Olivenöl', 'amount': 1, 'unit': 'EL', 'group': 'Vorrat und Konserven'},
+          {'name': 'Olivenöl', 'amount': 1, 'unit': 'EL', 'group': 'Für die Soße'},
+          {'name': 'Zwiebeln', 'amount': 2, 'unit': null, 'group': null},
           {'name': ''},
         ],
       });
       expect(r.servings, 2);
-      expect(r.ingredients.length, 2);
+      expect(r.ingredients.length, 3);
       expect(r.ingredients.first.grams, 300);
-      expect(r.ingredients.last.unit, 'el');
-      expect(r.ingredients.last.grams, isNull);
-      expect(ContentItem.fromJson(r.toJson()).ingredients.length, 2);
+      expect(r.ingredients[1].unit, 'el');
+      expect(r.ingredients[1].grams, isNull);
+      expect(r.ingredients[2].unit, '');
+      expect(ContentItem.fromJson(r.toJson()).ingredients.length, 3);
+      // Die Zwischenüberschrift im Rezept ist kein Regal.
+      final list = Shopping.aggregate([PlannedMeal(date: d, slot: MealSlot.abend, recipe: r, portions: 2)]);
+      expect(list.firstWhere((e) => e.name == 'Olivenöl').group, Shopping.vorrat);
+      expect(list.firstWhere((e) => e.name == 'Zwiebeln').amountLabel, '2');
+    });
+  });
+
+  group('Coaching-Fortschritt', () {
+    ContentItem lesson(int id, [String kind = 'lesen']) =>
+        ContentItem(id: id, type: ContentType.lesson, title: 'L$id', lessonKind: kind);
+    final courses = [
+      Course(id: 1, title: 'A', lessons: [lesson(1, 'wichtig'), lesson(2), lesson(3)]),
+      Course(id: 2, title: 'B', lessons: [for (var i = 10; i < 20; i++) lesson(i)]),
+    ];
+    final today = DateTime(2026, 11, 14, 18);
+
+    test('Level, Serie und Abzeichen', () {
+      final p = CoachingProgress.compute(
+        courses: courses,
+        doneAt: {
+          1: DateTime(2026, 11, 12, 9),
+          2: DateTime(2026, 11, 13, 9),
+          3: DateTime(2026, 11, 14, 9),
+          10: DateTime(2026, 11, 14, 10),
+          11: DateTime(2026, 11, 1),
+        },
+        today: today,
+        phase: PhaseKey.phase2,
+        phaseCourseIds: const [1],
+      );
+      expect(p.lessonsDone, 5);
+      expect(p.level.name, 'Entdecker');
+      expect(p.toNext, 10);
+      expect(p.streak, 3);
+      expect(p.bestStreak, 3);
+      expect(p.coursesDone, 1);
+      final earned = {for (final b in p.badges) if (b.earned) b.id};
+      expect(earned, containsAll(['erste', 'serie3', 'kurs', 'wichtig', 'ut']));
+      expect(earned.contains('serie7'), isFalse);
+    });
+
+    test('Serie läuft bis Ende des Tages weiter, danach von vorn', () {
+      final yesterdayOnly = CoachingProgress.compute(
+        courses: courses,
+        doneAt: {1: DateTime(2026, 11, 13, 20), 2: DateTime(2026, 11, 12, 20)},
+        today: today,
+        phase: PhaseKey.phase1,
+      );
+      expect(yesterdayOnly.streak, 2);
+      final gap = CoachingProgress.compute(
+        courses: courses,
+        doneAt: {1: DateTime(2026, 11, 11)},
+        today: today,
+        phase: PhaseKey.phase1,
+      );
+      expect(gap.streak, 0);
+      expect(gap.bestStreak, 1);
+    });
+
+    test('neue Abzeichen und nächste Lektion', () {
+      final before = CoachingProgress.compute(courses: courses, doneAt: const {}, today: today, phase: PhaseKey.phase2);
+      final after =
+          CoachingProgress.compute(courses: courses, doneAt: {2: today}, today: today, phase: PhaseKey.phase2);
+      expect(after.newBadgesSince(before).map((b) => b.id), ['erste']);
+      final next = CoachingProgress.nextLesson(courses, (l) => l.id <= 3, const [2]);
+      expect(next?.lesson.id, 10);
     });
   });
 }

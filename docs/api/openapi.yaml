@@ -1186,7 +1186,9 @@ components:
         - courses_done: "<term_id>" · data {term_id}
         - weight: "YYYY-MM-DD" · data {date, kg}
         - sport: Client-UUID · data {date, activity, minutes, note?}
-        - weekplan: "YYYY-MM-DD:<slot>" mit slot fruehstueck|mittag|abend|snack · data {date, slot, recipe_id?, note?} (keine Uhrzeiten)
+        - weekplan: "YYYY-MM-DD:<slot>" mit slot fruehstueck|mittag|abend|snack · data {date, slot, recipe_id?, note?, portions?} (keine Uhrzeiten).
+          portions: ganze Zahl 1–12, sonst 400 invalid_weekplan. Ohne recipe_id und ohne note heißt der Platz "bewusst frei".
+          Portionen und freie Plätze speichert nur das Plugin, nicht die MyVibono-Felder des Themes.
       properties:
         collection:
           type: string
@@ -1345,6 +1347,18 @@ components:
         course_id:
           type: integer
           nullable: true
+        servings:
+          type: integer
+          nullable: true
+          description: Nur Rezepte. Portionen, für die die Mengen in ingredients gelten. null = unbekannt.
+        ingredients:
+          type: array
+          nullable: true
+          description: |
+            Nur Rezepte, nur wenn nicht gesperrt (locked = false). null = Zutaten konnten nicht gelesen werden,
+            die App fällt dann auf "Zutaten für <Rezept>" zurück.
+          items:
+            $ref: '#/components/schemas/Ingredient'
         energy_density:
           type: number
           nullable: true
@@ -1367,6 +1381,54 @@ components:
         modified_at:
           type: string
           format: date-time
+    Ingredient:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          example: Magerquark
+        amount:
+          type: number
+          nullable: true
+          description: Menge für servings Portionen. Spannen wie "2-3" werden zum oberen Wert. null = nach Geschmack.
+          example: 200
+        unit:
+          type: string
+          nullable: true
+          description: |
+            Vereinheitlicht, kleingeschrieben: g, kg, ml, l, el, tl, stück, pck, prise, msp, bund, dose, becher, glas,
+            scheibe, zehe, tasse, handvoll, kopf, stange, zweig. Unbekannte Einheiten kommen kleingeschrieben durch.
+            null = Stückzahl ohne Einheit (z. B. "2 Zwiebeln").
+          example: g
+        group:
+          type: string
+          nullable: true
+          description: Zwischenüberschrift im Rezept (z. B. "Für das Dressing"), kein Supermarkt-Regal
+        kcal_per_100g:
+          type: number
+          nullable: true
+          description: Optional, wird derzeit nicht geliefert
+    PlannedMeal:
+      type: object
+      properties:
+        slot:
+          type: string
+          enum:
+          - fruehstueck
+          - mittag
+          - abend
+          - snack
+        recipe_id:
+          type: integer
+          nullable: true
+          description: null = Notiz ohne Rezept oder Platz bewusst frei
+        portions:
+          type: integer
+          nullable: true
+        note:
+          type: string
     ContentDetail:
       allOf:
       - $ref: '#/components/schemas/ContentSummary'
@@ -1439,9 +1501,21 @@ components:
                 $ref: '#/components/schemas/ContentSummary'
         recipes:
           type: array
-          maxItems: 3
+          description: |
+            recipes_source = weekplan: die Rezepte aus dem Wochenplan dieses Tages in der Reihenfolge der Mahlzeiten,
+            ohne doppelte Rezepte und ohne freie Plätze (kann leer sein). recipes_source = suggestion: bis zu 3 Vorschläge.
           items:
             $ref: '#/components/schemas/ContentSummary'
+        recipes_source:
+          type: string
+          enum:
+          - weekplan
+          - suggestion
+        planned_meals:
+          type: array
+          description: Wochenplan-Einträge des Tages (leer = nichts geplant), Reihenfolge fruehstueck, mittag, abend, snack
+          items:
+            $ref: '#/components/schemas/PlannedMeal'
         vibono_tip:
           $ref: '#/components/schemas/ContentSummary'
         tip_of_the_day:

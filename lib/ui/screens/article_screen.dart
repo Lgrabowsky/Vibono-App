@@ -8,10 +8,14 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/content.dart';
 import '../../data/models/points.dart';
 import '../../data/models/sync_item.dart';
+import '../../domain/coaching_progress.dart';
+import '../../state/gamification.dart';
 import '../../state/providers.dart';
 import '../../theme/vibono_colors.dart';
 import '../../theme/vibono_theme.dart';
 import '../widgets/common.dart';
+import '../widgets/day_sheets.dart';
+import '../widgets/gamification.dart';
 
 /// Beitrag lesen (Lektion oder Vibono-Tipp) mit Lese-Nachweis für Punkte.
 ///
@@ -133,10 +137,13 @@ class _ArticleScreenState extends ConsumerState<ArticleScreen> {
       ref.read(pointsBalanceProvider.notifier).set(r.balance);
       ref.invalidate(pointsProvider);
       ref.invalidate(ledgerProvider);
-      showPointsToast(context, r.awardedPoints, 'Beitrag gelesen');
       final item = widget.preview;
-      if (item != null && item.type == ContentType.lesson) {
-        await ref.read(syncProvider).upsert(SyncCollection.lessonsDone, '${widget.contentId}', {'post_id': widget.contentId});
+      final sync = ref.read(syncProvider);
+      final key = '${widget.contentId}';
+      if (item != null && item.type == ContentType.lesson && !sync.has(SyncCollection.lessonsDone, key)) {
+        await _celebrate(r.awardedPoints, () => sync.upsert(SyncCollection.lessonsDone, key, {'post_id': widget.contentId}));
+      } else {
+        showPointsToast(context, r.awardedPoints, 'Beitrag gelesen');
       }
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -150,6 +157,46 @@ class _ArticleScreenState extends ConsumerState<ArticleScreen> {
     } finally {
       if (mounted) setState(() => _completing = false);
     }
+  }
+
+  /// Lektion als gelesen speichern und zeigen, was sie gebracht hat:
+  /// Punkte, Level-Fortschritt, Serie und neue Abzeichen.
+  Future<void> _celebrate(int points, Future<void> Function() markDone) async {
+    final sync = ref.read(syncProvider);
+    final phase = ref.read(currentPhaseProvider);
+    List<Course> courses;
+    try {
+      courses = await ref.read(coursesProvider.future);
+    } catch (_) {
+      courses = const [];
+    }
+    final before = computeCoachingProgress(courses, sync, phase);
+    await markDone();
+    final after = computeCoachingProgress(courses, sync, phase);
+    if (!mounted) return;
+    if (courses.isEmpty) {
+      showPointsToast(context, points, 'Lektion gelesen');
+      return;
+    }
+    final next = CoachingProgress.nextLesson(
+      courses,
+      (l) => sync.has(SyncCollection.lessonsDone, '${l.id}'),
+      phaseCourseIds[phase] ?? const [],
+    )?.lesson;
+    await showVibonoSheet(
+      context,
+      LessonDoneSheet(
+        before: before,
+        after: after,
+        points: points,
+        next: next,
+        onNext: next == null
+            ? null
+            : () => Navigator.of(context).pushReplacement(
+                  MaterialPageRoute<void>(builder: (_) => ArticleScreen(contentId: next.id, preview: next)),
+                ),
+      ),
+    );
   }
 
   @override

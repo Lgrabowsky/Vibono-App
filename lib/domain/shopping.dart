@@ -119,7 +119,7 @@ abstract final class Shopping {
       for (final i in r.ingredients) {
         final unit = _baseUnit(i.unit);
         final k = '${_norm(i.name)}|$unit';
-        final acc = byKey.putIfAbsent(k, () => _Acc(i.name, i.group ?? groupFor(i.name), unit));
+        final acc = byKey.putIfAbsent(k, () => _Acc(i.name, groupFor(i.name), unit));
         if (i.amount != null) acc.amount = (acc.amount ?? 0) + _toBase(i.amount!, i.unit) * factor;
         if (!acc.recipes.contains(r.title)) acc.recipes.add(r.title);
       }
@@ -182,6 +182,10 @@ abstract final class Shopping {
       'tl' => 'TL',
       'stück' || 'stk' || '' => '',
       'pck' => 'Pck.',
+      'msp' => 'Msp.',
+      'prise' || 'bund' || 'dose' || 'becher' || 'glas' || 'scheibe' || 'zehe' || 'tasse' || 'handvoll' || 'kopf' ||
+      'stange' || 'zweig' =>
+        unit[0].toUpperCase() + unit.substring(1),
       _ => unit,
     };
     return label.isEmpty ? num(r < 0.5 ? 0.5 : r) : '${num(r < 0.5 ? 0.5 : r)} $label';

@@ -113,8 +113,9 @@ class ContentItem {
 }
 
 /// Zutat eines Rezepts. Die Schnittstelle liefert Objekte
-/// `{name, amount, unit, kcal_per_100g?, group?}`; ältere Beispieldaten
-/// kommen als `[name, gramm, kcal/100 g]`.
+/// `{name, amount|null, unit|null, group|null, kcal_per_100g?}`: `amount`
+/// gilt für `servings` Portionen, `null` heißt „nach Geschmack“, `unit`
+/// `null` heißt Stückzahl. Beispieldaten kommen als `[name, gramm, kcal/100 g]`.
 class RecipeIngredient {
   const RecipeIngredient({required this.name, this.amount, this.unit = 'g', this.kcalPer100g, this.group});
 
@@ -123,7 +124,7 @@ class RecipeIngredient {
   final String unit;
   final double? kcalPer100g;
 
-  /// Regal im Supermarkt, falls WordPress es mitliefert.
+  /// Zwischenüberschrift im Rezept (z. B. „Für die Soße“), kein Regal.
   final String? group;
 
   /// Menge in Gramm, wenn sie sich sicher bestimmen lässt (g oder ml).
@@ -151,7 +152,10 @@ class RecipeIngredient {
       return RecipeIngredient(
         name: name,
         amount: asDouble(j['amount']) ?? grams,
-        unit: (asString(j['unit']) ?? 'g').trim().toLowerCase().replaceAll('.', ''),
+        // Ohne Einheit ist eine Stückzahl gemeint („2 Zwiebeln“).
+        unit: j.containsKey('unit')
+            ? (asString(j['unit']) ?? '').trim().toLowerCase().replaceAll('.', '')
+            : (grams != null ? 'g' : ''),
         kcalPer100g: asDouble(j['kcal_per_100g']),
         group: asString(j['group']),
       );
