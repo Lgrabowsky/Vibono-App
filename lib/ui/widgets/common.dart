@@ -99,6 +99,49 @@ class CheckCircle extends StatelessWidget {
   }
 }
 
+/// „− 2 Portionen +“ zum Umrechnen von Rezepten.
+class PortionStepper extends StatelessWidget {
+  const PortionStepper({super.key, required this.value, required this.onChanged, this.min = 1, this.max = 12});
+  final int value;
+  final ValueChanged<int> onChanged;
+  final int min;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(IconData icon, String tip, int? next) => IconButton(
+          tooltip: tip,
+          visualDensity: VisualDensity.compact,
+          onPressed: next == null ? null : () => onChanged(next),
+          style: IconButton.styleFrom(
+            side: BorderSide(color: next == null ? VibonoColors.grey200 : VibonoColors.green, width: 1.5),
+            foregroundColor: VibonoColors.green700,
+          ),
+          icon: Icon(icon, size: 18),
+        );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      btn(Icons.remove_rounded, 'Eine Portion weniger', value > min ? value - 1 : null),
+      Semantics(
+        liveRegion: true,
+        child: SizedBox(
+          width: 92,
+          child: Text(
+            '$value ${value == 1 ? 'Portion' : 'Portionen'}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: VibonoFonts.display,
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: VibonoColors.grey800,
+            ),
+          ),
+        ),
+      ),
+      btn(Icons.add_rounded, 'Eine Portion mehr', value < max ? value + 1 : null),
+    ]);
+  }
+}
+
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key, this.color});
   final String text;

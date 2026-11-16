@@ -12,6 +12,7 @@ import 'package:vibono/domain/notification_planner.dart';
 import 'package:vibono/domain/recipe_picker.dart';
 import 'package:vibono/domain/shopping.dart';
 import 'package:vibono/domain/week_plan.dart';
+import 'package:vibono/ui/screens/recipe_detail_screen.dart' show stripIngredientSection;
 
 ContentItem recipe(int id, List<String> tags) =>
     ContentItem(id: id, type: ContentType.recipe, title: 'Rezept $id', tags: tags);
@@ -381,5 +382,11 @@ void main() {
       final next = CoachingProgress.nextLesson(courses, (l) => l.id <= 3, const [2]);
       expect(next?.lesson.id, 10);
     });
+  });
+
+  test('Rezepttext ohne doppelten Zutaten-Abschnitt', () {
+    const html = '<h3>Zutaten (2 Portionen)</h3>\n<ul><li>200 g Quark</li></ul><h3>Zubereitung</h3><p>Rühren.</p>';
+    expect(stripIngredientSection(html), '<h3>Zubereitung</h3><p>Rühren.</p>');
+    expect(stripIngredientSection('<p>Nur Text</p>'), '<p>Nur Text</p>');
   });
 }

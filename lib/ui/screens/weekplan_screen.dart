@@ -58,11 +58,11 @@ class _WeekplanScreenState extends ConsumerState<WeekplanScreen> {
           openCount: openCount,
           onPrev: () => _shiftWeek(-1),
           onNext: () => _shiftWeek(1),
+          onToday: () => setState(() => _selected = _today),
           onBasket: () => push(context, const ShoppingListScreen()),
         ),
         if (plan != null)
-          _WeekStrip(
-            monday: _monday,
+          _DateStrip(
             selected: _selected,
             today: _today,
             densityOf: (d) => WeekPlan.dayDensity(plan.day(d)),
@@ -132,6 +132,7 @@ class _Header extends StatelessWidget {
     required this.openCount,
     required this.onPrev,
     required this.onNext,
+    required this.onToday,
     required this.onBasket,
   });
 
@@ -139,6 +140,7 @@ class _Header extends StatelessWidget {
   final int openCount;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final VoidCallback onToday;
   final VoidCallback onBasket;
 
   @override
@@ -171,13 +173,19 @@ class _Header extends StatelessWidget {
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               _PillArrow(icon: Icons.chevron_left_rounded, tooltip: 'Vorherige Woche', onTap: onPrev),
-              Text('KW $week',
-                  style: const TextStyle(
-                    fontFamily: VibonoFonts.display,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
-                    color: VibonoColors.grey,
-                  )),
+              Tooltip(
+                message: 'Zu heute',
+                child: GestureDetector(
+                  onTap: onToday,
+                  child: Text('KW $week',
+                      style: const TextStyle(
+                        fontFamily: VibonoFonts.display,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                        color: VibonoColors.grey,
+                      )),
+                ),
+              ),
               _PillArrow(icon: Icons.chevron_right_rounded, tooltip: 'Nächste Woche', onTap: onNext),
             ]),
           ),
@@ -217,36 +225,94 @@ class _PillArrow extends StatelessWidget {
       );
 }
 
-class _WeekStrip extends StatelessWidget {
-  const _WeekStrip({
-    required this.monday,
+/// Datumsleiste zum seitlichen Wischen über viele Wochen. Der gewählte
+/// Tag (anfangs heute) steht in der Mitte.
+class _DateStrip extends StatefulWidget {
+  const _DateStrip({
     required this.selected,
     required this.today,
     required this.densityOf,
     required this.onSelect,
   });
 
-  final DateTime monday;
   final DateTime selected;
   final DateTime today;
   final double? Function(DateTime) densityOf;
   final ValueChanged<DateTime> onSelect;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(children: [
-          for (var i = 0; i < 7; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
-            Expanded(child: _dayTile(monday.add(Duration(days: i)))),
-          ],
-        ]),
-      );
+  State<_DateStrip> createState() => _DateStripState();
+}
+
+class _DateStripState extends State<_DateStrip> {
+  /// Tage vor und nach heute, durch die gewischt werden kann.
+  static const _range = 400;
+  static const _visible = 7;
+
+  ScrollController? _ctrl;
+  double _itemW = 52;
+  double _viewport = 7 * 52;
+
+  DateTime get selected => widget.selected;
+  DateTime get today => widget.today;
+
+  int _indexOf(DateTime d) => CoachingPlan.daysBetween(today, d) + _range;
+  DateTime _dateAt(int i) => today.add(Duration(days: i - _range));
+  double _offsetFor(DateTime d) => (_indexOf(d) * _itemW - (_viewport - _itemW) / 2).clamp(0, double.infinity);
+
+  @override
+  void didUpdateWidget(_DateStrip old) {
+    super.didUpdateWidget(old);
+    final c = _ctrl;
+    if (old.selected != selected && c != null && c.hasClients) {
+      final target = _offsetFor(selected).clamp(0.0, c.position.maxScrollExtent);
+      c.animateTo(target, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) {
+        _viewport = c.maxWidth;
+        _itemW = (c.maxWidth - 8) / _visible;
+        _ctrl ??= ScrollController(initialScrollOffset: _offsetFor(selected));
+        return SizedBox(
+          height: 70,
+          child: ListView.builder(
+            controller: _ctrl,
+            scrollDirection: Axis.horizontal,
+            itemExtent: _itemW,
+            itemCount: 2 * _range + 1,
+            itemBuilder: (_, i) {
+              final d = _dateAt(i);
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Positioned.fill(child: _dayTile(d)),
+                  // Feine Linie vor jedem Montag trennt die Wochen.
+                  if (d.weekday == DateTime.monday && d != selected)
+                    const Positioned(
+                      left: -2.5,
+                      top: 14,
+                      bottom: 14,
+                      child: SizedBox(width: 1, child: ColoredBox(color: VibonoColors.grey200)),
+                    ),
+                ]),
+              );
+            },
+          ),
+        );
+      });
 
   Widget _dayTile(DateTime d) {
     final isSel = d == selected;
     final isToday = d == today;
-    final density = densityOf(d);
+    final density = widget.densityOf(d);
     final dot = isSel
         ? Colors.white
         : density == null
@@ -260,7 +326,7 @@ class _WeekStrip extends StatelessWidget {
         color: isSel ? VibonoColors.green : Colors.transparent,
         borderRadius: BorderRadius.circular(3),
         child: InkWell(
-          onTap: () => onSelect(d),
+          onTap: () => widget.onSelect(d),
           borderRadius: BorderRadius.circular(3),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(0, 8, 0, 7),
@@ -661,7 +727,7 @@ class _MealSheetState extends ConsumerState<_MealSheet> {
       SectionLabel(heading),
       const SizedBox(height: 10),
       InkWell(
-        onTap: () => openContent(context, r),
+        onTap: () => openRecipe(context, r, portions: meal.portions, date: meal.date, slot: meal.slot),
         child: Row(children: [
           SizedBox(width: 84, height: 84, child: ContentImage(r.thumbnailUrl)),
           const SizedBox(width: 14),

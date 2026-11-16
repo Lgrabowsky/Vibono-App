@@ -6,6 +6,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/models/coaching_day.dart';
 import '../../data/models/content.dart';
 import '../../data/models/sync_item.dart';
+import '../../data/sync/sync_repository.dart';
 import '../../domain/coaching_plan.dart';
 import '../../domain/energy_density.dart';
 import '../../domain/recipe_picker.dart';
@@ -182,15 +183,16 @@ class _DayView extends ConsumerWidget {
     final doneMin = sportMinutes(sync.items(SyncCollection.sport), dk);
 
     // Mahlzeiten wie im Wochenplan, damit beide Ansichten übereinstimmen.
-    final meals = <(MealSlot, ContentItem)>[
+    final household = session.profile.householdSize;
+    final meals = <(MealSlot, ContentItem, int)>[
       if (plan != null)
         for (final m in plan.day(date))
-          if (m.recipe != null) (m.slot, m.recipe!)
+          if (m.recipe != null) (m.slot, m.recipe!, m.portions)
       else
-        for (var i = 0; i < day.recipes.length && i < 3; i++) (MealSlot.values[i], day.recipes[i]),
+        for (var i = 0; i < day.recipes.length && i < 3; i++) (MealSlot.values[i], day.recipes[i], household),
     ];
 
-    _Step meal(MealSlot slot, ContentItem r) {
+    _Step meal(MealSlot slot, ContentItem r, int portions) {
       final id = 'meal:${slot.wire}';
       void toggle() => ref.read(dayChecksProvider(dk).notifier).toggle(id);
       return _Step(
@@ -199,7 +201,7 @@ class _DayView extends ConsumerWidget {
         done: checks.contains(id),
         thumb: r.thumbnailUrl,
         density: r.energyDensity,
-        onOpen: () => openContent(context, r),
+        onOpen: () => openRecipe(context, r, portions: portions, date: date, slot: slot),
         onToggle: canCheck ? toggle : null,
         focusTitle: '${slot.mealLabel}: ${r.title}',
         focusMeta: r.energyDensity == null ? null : 'Energiedichte ${EnergyDensity.format(r.energyDensity!, digits: 1)}',
@@ -230,12 +232,21 @@ class _DayView extends ConsumerWidget {
             : t.excerpt,
         action: isLesson ? 'Lesen' : (shop ? 'Liste' : 'Eintragen'),
         onAction: () => _openTask(context, ref, t),
+        // Abhaken in beliebiger Reihenfolge. Das Gewicht braucht einen Wert,
+        // dafür öffnet sich das Eingabeblatt.
+        onToggle: !canCheck
+            ? null
+            : isLesson
+                ? () => sync.toggle(SyncCollection.lessonsDone, '${t.id}', {'post_id': t.id})
+                : shop
+                    ? () => ref.read(dayChecksProvider(dk).notifier).toggle('einkaufen')
+                    : () => _openTask(context, ref, t),
       );
     }
 
     final weightTask = day.sonstiges.where((s) => s.tags.contains('task:gewicht')).firstOrNull;
     final otherTasks = day.sonstiges.where((s) => !s.tags.contains('task:gewicht'));
-    _Step? mealFor(MealSlot s) => meals.where((m) => m.$1 == s).map((m) => meal(m.$1, m.$2)).firstOrNull;
+    _Step? mealFor(MealSlot s) => meals.where((m) => m.$1 == s).map((m) => meal(m.$1, m.$2, m.$3)).firstOrNull;
 
     // Reihenfolge eines Tages, ohne Uhrzeiten.
     final steps = <_Step>[
@@ -255,6 +266,7 @@ class _DayView extends ConsumerWidget {
           focusMeta: doneMin > 0 ? 'Schon $doneMin von $targetMin Min.' : bewegung.excerpt,
           action: 'Eintragen',
           onAction: () => showVibonoSheet(context, SportSheet(date: date, target: targetMin)),
+          onToggle: canCheck ? () => _toggleSport(context, sync, dk, doneMin, targetMin) : null,
         ),
       ?mealFor(MealSlot.abend),
     ];
@@ -365,6 +377,19 @@ class _DayView extends ConsumerWidget {
         PhaseKey.phase2 => 'Phase 2 · Tag ${p.dayInPhase} von ${CoachingPlan.phase2Days} · Gewohnheiten ändern',
         PhaseKey.phase3 => 'Phase 3 · ${p.dayLabel} · Satt essen & genießen',
       };
+
+  /// Bewegung per Kreis abhaken: trägt die fehlenden Minuten ein, ein
+  /// zweiter Tipp nimmt genau diesen Eintrag wieder heraus.
+  void _toggleSport(BuildContext context, SyncRepository sync, String dk, int done, int target) {
+    final key = 'app-quick-$dk';
+    if (sync.has(SyncCollection.sport, key)) {
+      sync.remove(SyncCollection.sport, key);
+    } else if (done < target) {
+      sync.upsert(SyncCollection.sport, key, {'date': dk, 'activity': 'gehen', 'minutes': target - done});
+    } else {
+      showVibonoSheet(context, SportSheet(date: date, target: target));
+    }
+  }
 
   static String _hello() {
     final h = DateTime.now().hour;
@@ -484,10 +509,9 @@ class _StepRow extends StatelessWidget {
         ),
       );
     } else if (focus) {
-      node = Container(
+      final ring = Container(
         width: 28,
         height: 28,
-        margin: const EdgeInsets.only(top: 16),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white,
@@ -499,6 +523,20 @@ class _StepRow extends StatelessWidget {
           height: 10,
           decoration: const BoxDecoration(color: VibonoColors.green, shape: BoxShape.circle),
         ),
+      );
+      node = Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: s.onToggle == null
+            ? Padding(padding: const EdgeInsets.all(10), child: ring)
+            : Semantics(
+                button: true,
+                label: '${s.title} abhaken',
+                child: InkResponse(
+                  onTap: s.onToggle,
+                  radius: 24,
+                  child: Padding(padding: const EdgeInsets.all(10), child: ring),
+                ),
+              ),
       );
       content = _FocusCard(step: s);
     } else {
@@ -562,7 +600,7 @@ class _StepRow extends StatelessWidget {
     }
 
     // Kreis links: mit Abhak-Fläche 48 px, sonst 28 px plus Rand.
-    final hasTapNode = s != null && !focus && (s.onToggle != null);
+    final hasTapNode = s != null && (focus || s.onToggle != null);
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(
@@ -575,7 +613,7 @@ class _StepRow extends StatelessWidget {
               child: Container(width: 2, color: VibonoColors.grey200),
             ),
             Padding(
-              padding: EdgeInsets.only(top: hasTapNode ? 0 : (focus ? 0 : 10)),
+              padding: EdgeInsets.only(top: hasTapNode ? 0 : 10),
               child: node,
             ),
           ]),

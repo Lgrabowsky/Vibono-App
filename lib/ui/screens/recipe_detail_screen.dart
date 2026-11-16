@@ -9,7 +9,9 @@ import '../../data/models/sync_item.dart';
 import '../../domain/coaching_plan.dart';
 import '../../domain/energy_density.dart';
 import '../../domain/recipe_picker.dart';
-import '../../state/day_checks.dart';
+import '../../domain/week_plan.dart';
+import '../../domain/shopping.dart';
+import '../../state/meal_plan.dart';
 import '../../state/providers.dart';
 import '../../theme/vibono_colors.dart';
 import '../../theme/vibono_theme.dart';
@@ -19,18 +21,41 @@ import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
 import 'energy_density/energy_density_screen.dart';
 
-class RecipeDetailScreen extends ConsumerWidget {
-  const RecipeDetailScreen({super.key, required this.recipeId, this.preview});
+/// Rezept mit einstellbaren Portionen. Kommt es aus dem Wochenplan
+/// ([date] und [slot]), werden geänderte Portionen dort mitgespeichert.
+class RecipeDetailScreen extends ConsumerStatefulWidget {
+  const RecipeDetailScreen({super.key, required this.recipeId, this.preview, this.portions, this.date, this.slot});
   final int recipeId;
   final ContentItem? preview;
+  final int? portions;
+  final DateTime? date;
+  final MealSlot? slot;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
+  late int _portions =
+      widget.portions ?? ref.read(sessionProvider).profile.householdSize.clamp(1, WeekPlan.maxPortions);
+
+  int get recipeId => widget.recipeId;
+
+  Future<void> _setPortions(ContentItem r, int n) async {
+    setState(() => _portions = n);
+    final d = widget.date;
+    final s = widget.slot;
+    if (d != null && s != null) await savePlannedMeal(ref, d, s, recipeId: r.id, portions: n);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final item = ref.watch(contentItemProvider(recipeId));
     final sync = ref.watch(syncProvider);
-    final r = item.value ?? preview;
+    final r = item.value ?? widget.preview;
     final favKey = 'recipe:$recipeId';
     final fav = sync.has(SyncCollection.favorites, favKey);
+    final html = r?.contentHtml;
 
     return Scaffold(
       body: r == null
@@ -86,9 +111,16 @@ class RecipeDetailScreen extends ConsumerWidget {
                       ),
                     ),
                   ]),
+                  if (r.ingredients.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _Ingredients(recipe: r, portions: _portions, onPortions: (n) => _setPortions(r, n)),
+                  ],
                   const SizedBox(height: 16),
-                  if (r.contentHtml != null)
-                    HtmlWidget(r.contentHtml!, textStyle: VibonoText.body.copyWith(fontSize: 15))
+                  if (html != null)
+                    HtmlWidget(
+                      r.ingredients.isEmpty ? html : stripIngredientSection(html),
+                      textStyle: VibonoText.body.copyWith(fontSize: 15),
+                    )
                   else if (item.isLoading)
                     const LoadingView(),
                 ]),
@@ -115,6 +147,8 @@ class RecipeDetailScreen extends ConsumerWidget {
       StatefulBuilder(builder: (context, setState) {
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('In den Wochenplan', style: VibonoText.hello),
+          const SizedBox(height: 4),
+          Text('$_portions ${_portions == 1 ? 'Portion' : 'Portionen'}', style: VibonoText.small),
           const SizedBox(height: 12),
           const SectionLabel('Tag'),
           const SizedBox(height: 6),
@@ -131,20 +165,14 @@ class RecipeDetailScreen extends ConsumerWidget {
           const SizedBox(height: 6),
           Wrap(spacing: 6, children: [
             for (final s in MealSlot.values)
-              ChoiceChip(label: Text(s.label), selected: slot == s, onSelected: (_) => setState(() => slot = s)),
+              ChoiceChip(label: Text(s.mealLabel), selected: slot == s, onSelected: (_) => setState(() => slot = s)),
           ]),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               onPressed: () async {
-                final d = dayKey(day);
-                await ref.read(syncProvider).upsert(SyncCollection.weekplan, '$d:${slot.wire}', {
-                  'date': d,
-                  'slot': slot.wire,
-                  'recipe_id': r.id,
-                });
-                ref.invalidate(coachingDayProvider(day));
+                await savePlannedMeal(ref, day, slot, recipeId: r.id, portions: _portions);
                 if (context.mounted) Navigator.pop(context);
               },
               child: const Text('EINPLANEN'),
@@ -210,3 +238,74 @@ class _Ed extends StatelessWidget {
         ]),
       );
 }
+
+/// Entfernt den Zutaten-Abschnitt („<h3>Zutaten …</h3><ul>…</ul>“) aus dem
+/// Rezepttext, wenn die App die Zutaten selbst mit Portionen anzeigt.
+String stripIngredientSection(String html) => html.replaceFirst(
+      RegExp(r'<h[1-6][^>]*>[^<]*Zutaten[^<]*</h[1-6]>\s*(<ul[\s\S]*?</ul>|<ol[\s\S]*?</ol>)', caseSensitive: false),
+      '',
+    );
+
+/// Zutatenliste mit Portionsregler, Mengen werden umgerechnet.
+class _Ingredients extends StatelessWidget {
+  const _Ingredients({required this.recipe, required this.portions, required this.onPortions});
+  final ContentItem recipe;
+  final int portions;
+  final ValueChanged<int> onPortions;
+
+  @override
+  Widget build(BuildContext context) {
+    final servings = recipe.servings;
+    final factor = servings == null ? 1.0 : portions / servings;
+    String? group;
+    final rows = <Widget>[];
+    for (final i in recipe.ingredients) {
+      if (i.group != null && i.group!.isNotEmpty && i.group != group) {
+        group = i.group;
+        rows.add(Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 2),
+          child: Text(group!, style: VibonoText.cardTitle.copyWith(fontSize: 14, color: VibonoColors.grey700)),
+        ));
+      }
+      final amount = i.amount == null ? '' : Shopping.formatAmount(i.amount! * factor, i.unit);
+      rows.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 86,
+            child: Text(
+              amount,
+              style: const TextStyle(
+                fontFamily: VibonoFonts.display,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: VibonoColors.grey800,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text.rich(TextSpan(children: [
+              TextSpan(text: i.name),
+              if (i.amount == null)
+                const TextSpan(text: '  nach Geschmack', style: TextStyle(color: VibonoColors.grey400, fontSize: 12)),
+            ]), style: VibonoText.body.copyWith(color: VibonoColors.grey900, height: 1.35)),
+          ),
+        ]),
+      ));
+      rows.add(const Divider(height: 1, color: VibonoColors.grey100));
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        const Expanded(child: SectionLabel('Zutaten')),
+        if (servings != null)
+          PortionStepper(value: portions, onChanged: onPortions)
+        else
+          const Text('Mengen laut Rezept', style: VibonoText.small),
+      ]),
+      const SizedBox(height: 6),
+      ...rows,
+    ]);
+  }
+}
+

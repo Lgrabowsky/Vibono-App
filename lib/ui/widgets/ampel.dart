@@ -27,7 +27,7 @@ class AmpelBar extends StatelessWidget {
                 right: 0,
                 top: 5,
                 height: 8,
-                child: Row(children: [
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Expanded(flex: 375, child: _seg(VibonoColors.green)),
                   const SizedBox(width: 2),
                   Expanded(flex: 250, child: _seg(VibonoColors.gelb)),
