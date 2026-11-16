@@ -1436,6 +1436,12 @@ components:
         properties:
           content_html:
             type: string
+            description: |
+              Bei Rezepten mit ingredients ohne den Zutatenblock (Zutatenbereich von WP Recipe Maker oder Überschrift
+              "Zutaten …" mit den folgenden Listen), damit die Zutaten nicht doppelt erscheinen.
+          ingredients_stripped:
+            type: boolean
+            description: true, wenn ein Zutatenblock aus content_html entfernt wurde. false bei allen anderen Inhalten.
           word_count:
             type: integer
     CoachingDay:
