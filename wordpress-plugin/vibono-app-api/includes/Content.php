@@ -3,6 +3,7 @@ namespace Vibono\AppApi;
 
 use Vibono\AppApi\Core\CoachingCalendar;
 use Vibono\AppApi\Core\ReadingRules;
+use Vibono\AppApi\Core\RecipeHtml;
 use Vibono\AppApi\Core\SyncRules;
 
 defined( 'ABSPATH' ) || exit;
@@ -120,13 +121,20 @@ class Content {
 		if ( ! Membership::can_view( $user_id, $p->ID ) ) {
 			return Plugin::error( 'vibono_membership_required', 'Dieser Inhalt ist Teil einer Vibono-Mitgliedschaft.', 403, array( 'required_plans' => (array) Settings::get( 'coaching_membership_plans' ) ) );
 		}
-		$done = SyncStore::current_map( $user_id, 'lessons_done' );
-		$html = apply_filters( 'the_content', $p->post_content ); // phpcs:ignore
+		$done    = SyncStore::current_map( $user_id, 'lessons_done' );
+		$html    = apply_filters( 'the_content', $p->post_content ); // phpcs:ignore
+		$summary = self::summary( $p, $user_id, $done );
+		// Liefert die App die Zutaten strukturiert (eigene Liste mit Portionsregler), fehlt der Zutatenblock im Text.
+		$stripped = false;
+		if ( 'recipe' === $summary['type'] && ! empty( $summary['ingredients'] ) ) {
+			list( $html, $stripped ) = RecipeHtml::strip_ingredients( (string) $html );
+		}
 		return array_merge(
-			self::summary( $p, $user_id, $done ),
+			$summary,
 			array(
-				'content_html' => $html,
-				'word_count'   => ReadingRules::word_count( $html ),
+				'content_html'         => $html,
+				'ingredients_stripped' => $stripped,
+				'word_count'           => ReadingRules::word_count( $html ),
 			)
 		);
 	}
