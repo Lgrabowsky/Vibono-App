@@ -1,0 +1,91 @@
+VIBONO-TESTUMGEBUNG
+===================
+
+Damit probierst du das WordPress-Plugin "Vibono App API & Punkte" aus, ohne
+vibono.de anzufassen. Alles läuft in einem kleinen WordPress auf diesem PC:
+mit Testkonten, Lektionen, Rezepten, Tipps und einem Test-Shop.
+Es gibt keine Verbindung zu vibono.de, es werden keine E-Mails verschickt
+und es fließt kein Geld.
+
+
+ENTPACKEN (einmalig)
+--------------------
+Rechtsklick auf Vibono-Test.zip → "Alle extrahieren" → als Ziel  C:\
+eingeben → "Extrahieren". Danach gibt es den Ordner C:\Vibono-Test.
+Ein kurzer Ordnerpfad ist wichtig: Windows entpackt sehr lange Dateipfade
+nicht. Auf dem Desktop oder in tief verschachtelten Ordnern kann es fehlen.
+
+
+STARTEN
+-------
+1. Im Ordner Vibono-Test Doppelklick auf  Start.bat
+2. Ein schwarzes Fenster öffnet sich, kurz danach der Browser mit der
+   Testzentrale:  http://localhost:8080/testzentrale/
+3. Das schwarze Fenster offen lassen, solange du testest.
+   Zum Beenden das Fenster einfach schließen.
+
+Falls Windows fragt:
+- "Windows hat den PC geschützt": auf "Weitere Informationen", dann
+  "Trotzdem ausführen" klicken.
+- Netzwerkzugriff für php.exe: "Zulassen", wenn du auch vom Handy im WLAN
+  testen willst. Sonst "Abbrechen", am PC funktioniert alles trotzdem.
+- Meldung, dass "Visual C++" fehlt: Start.bat öffnet den Download von
+  Microsoft. Die Datei installieren und Start.bat erneut starten.
+
+
+ANMELDEN
+--------
+Backend (WordPress):  http://localhost:8080/wp-admin/
+  Benutzer: admin       Passwort: vibono-test
+
+Testkonten (für Shop, Website und die Testzentrale), Passwort jeweils vibono-test:
+  anna@vibono-test.local   Coaching-Mitglied, Tag 5, hat schon Punkte
+  ben@vibono-test.local    ohne Mitgliedschaft, von Anna geworben, startet morgen
+  clara@vibono-test.local  ganz neues Konto
+
+
+WAS DU AUSPROBIEREN KANNST
+--------------------------
+In der Testzentrale (links das Menü):
+- Punktekonto: App täglich öffnen, Buchungen, Widerrufsfrist überspringen
+- Lesen & Lesepunkte: Artikel lesen wie in der App, mit Lesezeit, Scrollen, Quiz
+- Freunde werben: Code prüfen, neues Konto mit Code registrieren
+- Shop & Bestellungen: im Test-Shop einkaufen und Punkte einlösen,
+  Bestellungen simulieren, abschließen, stornieren, erstatten
+- Aktionen: doppelte Punkte, doppelter Punktwert usw.
+- Coaching heute, Inhalte & Rezepte, Meine Daten, Profil, Energiedichte
+- E-Mails: alles, was sonst verschickt würde
+- Protokoll: jede Anfrage an die Schnittstelle mit Antwort (für den Entwickler)
+
+Im Backend unter "Vibono-Punkte":
+- Punktwerte und Umrechnungskurs ändern (Kurs & Regeln)
+- Aktionen anlegen
+- Punkte manuell buchen
+- Module ein- und ausschalten (Module & Anbindung)
+
+
+ZURÜCKSETZEN
+------------
+Alles wieder wie am Anfang: Testumgebung-Fenster schließen, dann
+Zuruecksetzen.bat starten.
+
+
+MIT DEM HANDY / DER APP
+-----------------------
+Auf der Startseite der Testzentrale steht die Adresse für andere Geräte im
+selben WLAN, z. B. http://192.168.178.20:8080/testzentrale/
+Die Schnittstelle für die App ist dann http://192.168.178.20:8080/wp-json/vibono/v1
+
+
+GUT ZU WISSEN
+-------------
+- Das WordPress-Backend ist auf Englisch (Sprachpakete werden nicht geladen).
+  Das Plugin selbst und die Testzentrale sind auf Deutsch.
+- "WooCommerce Memberships" ist ein kostenpflichtiges Plugin und hier nicht
+  enthalten. Die Testumgebung stellt seine Funktionen nach: Mitgliedschaft
+  in der Testzentrale unter "Coaching heute" ein- und ausschalten.
+- Foto-Schätzung und Rezept-Scan zeigen ohne Claude-Schlüssel eine markierte
+  Beispiel-Antwort. Mit Schlüssel (Testzentrale → Energiedichte) wird echt
+  ausgewertet; das kostet API-Guthaben.
+- Für den Entwickler: Quellcode, Aufbau und Selbsttest liegen im Repository
+  unter wordpress-plugin/testumgebung/ (README.md).
