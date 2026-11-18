@@ -16,6 +16,7 @@ use Vibono\AppApi\Points;
 use Vibono\AppApi\Profile;
 use Vibono\AppApi\Referral;
 use Vibono\AppApi\Settings;
+use Vibono\AppApi\Streak;
 
 const VT_NS = 'vibono-test/v1';
 
@@ -58,6 +59,7 @@ function vt_nutzer( $u ) {
 		'coaching_start'     => $g['coaching_start_date'],
 		'beschreibung'       => (string) get_user_meta( $u->ID, '_vt_beschreibung', true ),
 		'testpasswort'       => '' !== (string) get_user_meta( $u->ID, '_vt_testpasswort', true ) ? (string) get_user_meta( $u->ID, '_vt_testpasswort', true ) : null,
+		'serie'              => Streak::view( $u->ID ),
 	);
 }
 
@@ -182,9 +184,44 @@ function vt_tag_vorspulen( $user_id ) {
 		$g['coaching_start_date'] = ( new DateTimeImmutable( $g['coaching_start_date'] ) )->modify( '-1 day' )->format( 'Y-m-d' );
 		update_user_meta( $user_id, Profile::GOALS_META, $g );
 	}
+	// Serie fürs tägliche Öffnen: der letzte Öffnen-Tag rückt einen Tag in die Vergangenheit.
+	$serie = get_user_meta( $user_id, Streak::META, true );
+	if ( is_array( $serie ) && ! empty( $serie['last_date'] ) ) {
+		$serie['last_date'] = ( new DateTimeImmutable( $serie['last_date'] ) )->modify( '-1 day' )->format( 'Y-m-d' );
+		update_user_meta( $user_id, Streak::META, $serie );
+	}
 	// Ratenbegrenzungen (z. B. Foto-Auswertungen pro Tag) zurücksetzen.
 	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_vibono\\_rl\\_%' OR option_name LIKE '\\_transient\\_timeout\\_vibono\\_rl\\_%'" ); // phpcs:ignore
 	return $n;
+}
+
+/**
+ * Serie fürs tägliche Öffnen direkt setzen: $tage Tage in Folge bis gestern, heute noch nicht geöffnet.
+ * 0 = keine Serie. Schutztage des Monats wieder voll.
+ */
+function vt_serie_setzen( $user_id, $tage ) {
+	$tage = max( 0, min( 1000, (int) $tage ) );
+	if ( ! $tage ) {
+		update_user_meta( $user_id, Streak::META, array( 'days' => 0, 'best' => 0, 'last_date' => null, 'grace_month' => null, 'grace_used' => 0 ) );
+	} else {
+		$alt = Streak::state( $user_id );
+		update_user_meta(
+			$user_id,
+			Streak::META,
+			array(
+				'days'        => $tage,
+				'best'        => max( $tage, (int) $alt['best'] ),
+				'last_date'   => ( new DateTimeImmutable( Plugin::today() ) )->modify( '-1 day' )->format( 'Y-m-d' ),
+				'grace_month' => null,
+				'grace_used'  => 0,
+			)
+		);
+	}
+	// Heutiges Öffnen freigeben, damit der nächste Klick auf "App öffnen" zählt.
+	global $wpdb;
+	$t = Install::table( 'points_ledger' );
+	$wpdb->query( $wpdb->prepare( "UPDATE $t SET idempotency_key = CONCAT(idempotency_key, ':neu:', id) WHERE idempotency_key = %s", 'app_open:' . $user_id . ':' . Plugin::today() ) ); // phpcs:ignore
+	return Streak::view( $user_id );
 }
 
 function vt_aktion_format( $c ) {
@@ -235,7 +272,7 @@ add_action(
 				return array(
 					'plugin'            => array( 'aktiv' => true, 'version' => VIBONO_API_VERSION, 'abgeschaltet' => defined( 'VIBONO_API_DISABLE' ) && VIBONO_API_DISABLE ),
 					'module'            => array_combine( $keys, array_map( static fn( $k ) => (bool) Settings::get( $k ), $keys ) ),
-					'werte'             => array_intersect_key( $s, array_flip( array( 'cents_per_point', 'earn_app_open', 'earn_article_read', 'article_read_daily_cap', 'earn_referral', 'earn_referral_friend', 'referral_min_order_cents', 'earn_purchase_per_euro', 'pending_days', 'max_redeem_percent', 'min_redeem_points', 'reading_min_seconds', 'reading_max_seconds', 'reading_min_scroll', 'reading_quiz_mode' ) ) ),
+					'werte'             => array_intersect_key( $s, array_flip( array( 'cents_per_point', 'earn_app_open', 'earn_article_read', 'article_read_daily_cap', 'earn_referral', 'earn_referral_friend', 'referral_min_order_cents', 'earn_purchase_per_euro', 'pending_days', 'max_redeem_percent', 'min_redeem_points', 'reading_min_seconds', 'reading_max_seconds', 'reading_min_scroll', 'reading_quiz_mode', 'streak_enabled', 'streak_grace_per_month', 'streak_on_break' ) ) ) + array( 'streak_levels' => Streak::levels() ),
 					'adressen'          => vt_adressen(),
 					'claude_schluessel' => '' !== Settings::anthropic_key(),
 					'letzter_fehler'    => is_array( $err ) ? $err['message'] . ' (' . wp_date( 'd.m.Y H:i', $err['at'] ) . ')' : null,
@@ -277,6 +314,14 @@ add_action(
 			static function ( $r ) {
 				$n = vt_tag_vorspulen( (int) $r['id'] );
 				return array( 'verschoben' => $n, 'nutzer' => vt_nutzer( (int) $r['id'] ) );
+			}
+		);
+
+		vt_route(
+			'/nutzer/(?P<id>\d+)/serie',
+			'POST',
+			static function ( $r ) {
+				return array( 'serie' => vt_serie_setzen( (int) $r['id'], (int) $r['tage'] ), 'nutzer' => vt_nutzer( (int) $r['id'] ) );
 			}
 		);
 

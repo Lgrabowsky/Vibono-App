@@ -1,0 +1,272 @@
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../theme/vibono_colors.dart';
+import '../../theme/vibono_theme.dart';
+
+/// Vibono-Logo, unverändert aus dem Design-System übernommen.
+class VibonoLogo extends StatelessWidget {
+  const VibonoLogo({super.key, this.height = 22});
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+        'assets/images/vibono-logo.jpg',
+        height: height,
+        fit: BoxFit.contain,
+        semanticLabel: 'Vibono',
+      );
+}
+
+/// Das Vibono-V (für den Coaching-Tab).
+class VibonoV extends StatelessWidget {
+  const VibonoV({super.key, this.size = 24, this.color = VibonoColors.green});
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => SvgPicture.asset(
+        'assets/icons/vibono-v.svg',
+        height: size,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+}
+
+/// App-Icon als „Coach“-Avatar.
+class CoachAvatar extends StatelessWidget {
+  const CoachAvatar({super.key, this.size = 44});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.27),
+        child: Image.asset('assets/images/vibono-app-icon.jpg', width: size, height: size),
+      );
+}
+
+/// Bild aus dem App-Bundle (`asset:`) oder aus dem Netz.
+class ContentImage extends StatelessWidget {
+  const ContentImage(this.url, {super.key, this.fit = BoxFit.cover});
+  final String? url;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = url;
+    const placeholder = ColoredBox(
+      color: VibonoColors.green050,
+      child: Center(child: VibonoV(size: 22, color: VibonoColors.green300)),
+    );
+    if (u == null || u.isEmpty) return placeholder;
+    if (u.startsWith('asset:')) return Image.asset(u.substring(6), fit: fit);
+    return Image.network(u, fit: fit, errorBuilder: (_, _, _) => placeholder);
+  }
+}
+
+/// Abhak-Kreis: leer grau umrandet, erledigt grün mit dem Vibono-V.
+class CheckCircle extends StatelessWidget {
+  const CheckCircle({super.key, required this.checked, this.onTap, this.size = 24, this.label});
+  final bool checked;
+  final VoidCallback? onTap;
+  final double size;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final circle = AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: checked ? VibonoColors.green : Colors.white,
+        border: Border.all(color: checked ? VibonoColors.green : VibonoColors.grey300, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: checked ? VibonoV(size: size * 0.5, color: Colors.white) : null,
+    );
+    if (onTap == null) return circle;
+    return Semantics(
+      checked: checked,
+      button: true,
+      label: label,
+      child: InkResponse(
+        onTap: onTap,
+        radius: size,
+        child: Padding(padding: const EdgeInsets.all(10), child: circle),
+      ),
+    );
+  }
+}
+
+/// „− 2 Portionen +“ zum Umrechnen von Rezepten.
+class PortionStepper extends StatelessWidget {
+  const PortionStepper({super.key, required this.value, required this.onChanged, this.min = 1, this.max = 12});
+  final int value;
+  final ValueChanged<int> onChanged;
+  final int min;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(IconData icon, String tip, int? next) => IconButton(
+          tooltip: tip,
+          visualDensity: VisualDensity.compact,
+          onPressed: next == null ? null : () => onChanged(next),
+          style: IconButton.styleFrom(
+            side: BorderSide(color: next == null ? VibonoColors.grey200 : VibonoColors.green, width: 1.5),
+            foregroundColor: VibonoColors.green700,
+          ),
+          icon: Icon(icon, size: 18),
+        );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      btn(Icons.remove_rounded, 'Eine Portion weniger', value > min ? value - 1 : null),
+      Semantics(
+        liveRegion: true,
+        child: SizedBox(
+          width: 92,
+          child: Text(
+            '$value ${value == 1 ? 'Portion' : 'Portionen'}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: VibonoFonts.display,
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: VibonoColors.grey800,
+            ),
+          ),
+        ),
+      ),
+      btn(Icons.add_rounded, 'Eine Portion mehr', value < max ? value + 1 : null),
+    ]);
+  }
+}
+
+class SectionLabel extends StatelessWidget {
+  const SectionLabel(this.text, {super.key, this.color});
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(text.toUpperCase(), style: VibonoText.label.copyWith(color: color));
+}
+
+class SectionHeader extends StatelessWidget {
+  const SectionHeader(this.label, {super.key, this.action, this.onAction});
+  final String label;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: SectionLabel(label)),
+          if (action != null)
+            InkWell(
+              onTap: onAction,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text(
+                  action!,
+                  style: const TextStyle(
+                    fontFamily: VibonoFonts.display,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: VibonoColors.green700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+}
+
+/// Fehleranzeige mit „Nochmal versuchen“.
+class ErrorRetry extends StatelessWidget {
+  const ErrorRetry({super.key, required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, textAlign: TextAlign.center, style: VibonoText.body),
+              const SizedBox(height: 12),
+              OutlinedButton(onPressed: onRetry, child: const Text('NOCHMAL VERSUCHEN')),
+            ],
+          ),
+        ),
+      );
+}
+
+class LoadingView extends StatelessWidget {
+  const LoadingView({super.key});
+  @override
+  Widget build(BuildContext context) => const Center(child: CircularProgressIndicator());
+}
+
+/// Punktestand als kleine Pille.
+class PointsChip extends StatelessWidget {
+  const PointsChip({super.key, required this.points, this.onTap});
+  final int points;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: onTap != null,
+        label: '$points Punkte',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: VibonoColors.green050, borderRadius: BorderRadius.circular(999)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.star_rounded, size: 16, color: VibonoColors.green),
+              const SizedBox(width: 4),
+              Text(
+                formatPoints(points),
+                style: const TextStyle(
+                  fontFamily: VibonoFonts.display,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: VibonoColors.green900,
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+String formatPoints(int p) {
+  final s = p.abs().toString();
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) b.write('.');
+    b.write(s[i]);
+  }
+  return '${p < 0 ? '−' : ''}$b';
+}
+
+void showPointsToast(BuildContext context, int points, String reason) {
+  if (points <= 0) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Row(children: [
+      const Icon(Icons.star_rounded, color: VibonoColors.green),
+      const SizedBox(width: 8),
+      Expanded(child: Text('+$points Punkte · $reason')),
+    ]),
+    duration: const Duration(seconds: 3),
+  ));
+}
+
+void showMessage(BuildContext context, String text) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));

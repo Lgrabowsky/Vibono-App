@@ -46,6 +46,27 @@
 	const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
 	const GRUENDE = { app_open: 'App geöffnet', article_read: 'Artikel gelesen', referral: 'Kund*in geworben', referral_friend: 'Willkommensbonus', purchase: 'Einkauf', redeem: 'Eingelöst', redeem_refund: 'Einlösung zurück', admin: 'Manuelle Buchung', migration: 'Übernahme Refer-a-friend', expire: 'Verfallen' };
 	const STATUS = { confirmed: ['bestätigt', 'gruen'], pending: ['vorgemerkt', 'gelb'], void: ['storniert', 'rot'] };
+	const SERIE_EREIGNIS = {
+		first: 'Erster Tag einer neuen Serie.',
+		continued: 'Serie geht weiter.',
+		bridged: 'Lücke mit Schutztag überbrückt, die Serie hält.',
+		broken: 'Serie war gerissen.',
+		same_day: 'Heute schon gezählt.',
+	};
+	const BRUCH = { drop_level: 'eine Stufe zurück', reset: 'neu bei Tag 1' };
+
+	/** Stufen der Serie als Tabelle, die aktuelle Stufe hervorgehoben. */
+	function serieStufen(st, aktuellAb) {
+		return '<table><thead><tr><th>ab Tag in Folge</th><th class="zahl-rechts">Punkte pro Tag</th></tr></thead><tbody>' +
+			(st || []).map((l) => '<tr' + (l.from_day === aktuellAb ? ' style="background:var(--gruen-050);font-weight:600"' : '') + '><td>' + h(l.from_day) + (l.from_day === aktuellAb ? ' <span class="marke gruen">aktuell</span>' : '') + '</td><td class="zahl-rechts">' + zahl(l.points) + '</td></tr>').join('') +
+			'</tbody></table>';
+	}
+
+	/** Kurztext zur Serie, z. B. für Kopfzeilen. */
+	function serieKurz(v) {
+		if (!v || !v.enabled) return 'Serie aus';
+		return v.days + (v.days === 1 ? ' Tag' : ' Tage') + ' in Folge' + (v.opened_today ? '' : ' (heute noch nicht geöffnet)');
+	}
 
 	function hinweis(text, fehler) {
 		const el = $('#hinweis');
@@ -232,7 +253,7 @@
 				<div class="karte"><h2>Aktuelle Punktwerte</h2>
 					<table><tbody>
 						<tr><td>1 Punkt</td><td>${h(w.cents_per_point)} Cent</td></tr>
-						<tr><td>App täglich öffnen</td><td>${h(w.earn_app_open)} Punkte</td></tr>
+						<tr><td>App täglich öffnen</td><td>${h(w.earn_app_open)} Punkte${w.streak_enabled ? '<br><small>Serie: ' + (w.streak_levels || []).slice(1).map((l) => 'ab Tag ' + h(l.from_day) + ': ' + h(l.points)).join(' · ') + ' · ' + h(w.streak_grace_per_month) + ' Schutztage/Monat, danach ' + h(BRUCH[w.streak_on_break] || w.streak_on_break) + '</small>' : ' <small>(Serie aus)</small>'}</td></tr>
 						<tr><td>Artikel gelesen</td><td>${h(w.earn_article_read)} Punkte (max. ${h(w.article_read_daily_cap)} pro Tag)</td></tr>
 						<tr><td>Kund*in geworben</td><td>${h(w.earn_referral)} Punkte, Geworbene ${h(w.earn_referral_friend)} (ab ${euro(w.referral_min_order_cents)})</td></tr>
 						<tr><td>Einkauf</td><td>${h(w.earn_purchase_per_euro)} Punkte je Euro</td></tr>
@@ -277,16 +298,17 @@
 			</div>
 			<div class="raster">
 				<div class="karte"><h2>App täglich öffnen</h2>
-					<p>Die App meldet beim Öffnen <code>POST /points/app-open</code>. Pro Tag gibt es einmal Punkte, ein zweiter Aufruf bringt nichts.</p>
+					<p>Die App meldet beim Öffnen <code>POST /points/app-open</code>. Pro Tag gibt es einmal Punkte, ein zweiter Aufruf bringt nichts. Mit der Serie gibt es mehr Punkte, je mehr Tage in Folge geöffnet wurde.</p>
 					<div class="knopfreihe"><button id="oeffnen">📱 App öffnen</button></div>
 					<div class="knopfreihe"><button class="zweit klein" id="tag">⏩ Einen Tag vorspulen</button><span class="marke gelb">Testhelfer</span></div>
-					<p class="leise">„Einen Tag vorspulen“ legt die heutigen Buchungen dieser Person auf gestern und zählt den Coaching-Tag eins weiter. Danach gibt es wieder Punkte fürs Öffnen und neue Lesepunkte.</p>
+					<p class="leise">„Einen Tag vorspulen“ legt die heutigen Buchungen dieser Person auf gestern und zählt den Coaching-Tag eins weiter. Danach gibt es wieder Punkte fürs Öffnen und neue Lesepunkte. Zweimal vorspulen ohne zu öffnen = ein verpasster Tag.</p>
 					<div id="oeffnen-erg"></div>
 				</div>
 				<div class="karte"><h2>So viele Punkte gibt es gerade</h2><table><tbody>${regeln}</tbody></table>
 					<h3>Aktionen</h3>${akt ? '<ul class="liste">' + akt + '</ul>' : '<p class="leise">Keine laufende oder geplante Aktion.</p>'}
 				</div>
 			</div>
+			${serieKarte(s.streak)}
 			<div class="karte"><h2>Buchungen</h2>
 				<div class="knopfreihe"><button class="zweit klein" id="frist">⏩ Widerrufsfrist überspringen</button><span class="marke gelb">Testhelfer</span><small class="leise">Bestätigt vorgemerkte Punkte, deren Frist läuft (Einkäufe erst nach „abgeschlossen“).</small></div>
 				${led.ok ? tabelleBuchungen(led.data.items || []) : ergebnis(led)}
@@ -294,7 +316,9 @@
 		$('#oeffnen').onclick = async () => {
 			const r = await api('POST', '/points/app-open');
 			const d = r.data || {};
-			const text = r.ok ? (d.already_awarded ? 'Heute schon belohnt – keine weiteren Punkte.' : '+' + d.awarded_points + ' Punkte' + (d.multiplier > 1 ? ' (×' + d.multiplier + ' durch Aktion)' : '') + '. Neuer Kontostand: ' + zahl(d.balance)) : null;
+			const st = d.streak || {};
+			const serieText = st.enabled ? ' ' + (SERIE_EREIGNIS[st.event] || '') + (st.event === 'bridged' ? ' (' + st.bridged_days + (st.bridged_days === 1 ? ' Schutztag' : ' Schutztage') + ' verbraucht)' : '') + (st.event === 'broken' ? ' Vorher ' + st.previous_days + ' Tage, jetzt ' + (BRUCH[st.on_break] || st.on_break) + '.' : '') + ' Heute: Tag ' + st.today.day + ', ' + st.today.points + ' Punkte pro Tag.' : '';
+			const text = r.ok ? (d.already_awarded ? 'Heute schon belohnt – keine weiteren Punkte.' + serieText : '+' + d.awarded_points + ' Punkte' + (d.multiplier > 1 ? ' (×' + d.multiplier + ' durch Aktion)' : '') + '. Neuer Kontostand: ' + zahl(d.balance) + '.' + serieText) : null;
 			await personAktualisieren();
 			await SEITEN.punkte(el);
 			zeige('#oeffnen-erg', ergebnis(r, text));
@@ -305,6 +329,14 @@
 			await personAktualisieren();
 			SEITEN.punkte(el);
 		};
+		const serieBtn = $('#serie-setzen');
+		if (serieBtn) serieBtn.onclick = async () => {
+			const tage = parseInt($('#serie-tage').value, 10) || 0;
+			const r = await helfer('POST', '/nutzer/' + S.person.id + '/serie', { tage });
+			hinweis(r.ok ? (tage ? 'Serie steht auf ' + tage + ' Tagen bis gestern. Jetzt „App öffnen“ drücken.' : 'Serie gelöscht.') : meldung(r), !r.ok);
+			await personAktualisieren();
+			SEITEN.punkte(el);
+		};
 		$('#frist').onclick = async () => {
 			const r = await helfer('POST', '/frist-ueberspringen', { user_id: S.person.id });
 			hinweis(r.ok ? r.data.bestaetigt + ' Buchungen bestätigt.' : meldung(r), !r.ok);
@@ -312,6 +344,24 @@
 			SEITEN.punkte(el);
 		};
 	};
+
+	/** Karte „Serie“ im Punktekonto. */
+	function serieKarte(v) {
+		if (!v || !v.enabled) return '<div class="karte"><h2>Serie (Streak)</h2><p class="leise">Die Serie ist ausgeschaltet. Einschalten im Backend unter Vibono-Punkte → Kurs & Regeln.</p></div>';
+		const nxt = v.next_stage;
+		return `<div class="karte gruen"><h2>Serie (Streak)</h2>
+			<div class="zahlen">
+				<div class="zahl gruen"><b>${zahl(v.days)}</b><span>${v.days === 1 ? 'Tag' : 'Tage'} in Folge${v.opened_today ? '' : (v.alive ? ' · heute noch offen' : ' · gerissen')}</span></div>
+				<div class="zahl"><b>${zahl(v.today.points)}</b><span>Punkte ${v.opened_today ? 'heute' : 'beim nächsten Öffnen'} (Tag ${h(v.today.day)})</span></div>
+				<div class="zahl"><b>${zahl(v.best)}</b><span>längste Serie</span></div>
+				<div class="zahl"><b>${zahl(v.grace_left)} / ${zahl(v.grace_per_month)}</b><span>Schutztage übrig (Monat)</span></div>
+			</div>
+			<p>${nxt ? 'Noch <strong>' + nxt.days_left + (nxt.days_left === 1 ? ' Tag' : ' Tage') + '</strong> bis zur nächsten Stufe: ' + nxt.points + ' Punkte pro Tag ab Tag ' + nxt.from_day + '.' : 'Höchste Stufe erreicht.'} Reißt die Serie: ${h(BRUCH[v.on_break] || v.on_break)}.</p>
+			${serieStufen(v.levels, v.stage.from_day)}
+			<div class="knopfreihe"><label style="margin:0"><span>Serie bis gestern</span><input type="number" id="serie-tage" min="0" max="1000" value="${Math.max(6, v.days)}" style="width:6em"></label><button class="zweit klein" id="serie-setzen">Serie setzen</button><span class="marke gelb">Testhelfer</span></div>
+			<p class="leise">„Serie setzen“ tut so, als wäre die App bis gestern so viele Tage in Folge geöffnet worden (0 = keine Serie). Danach „App öffnen“ drücken. Stufen und Schutztage änderst du im <a href="${h((S.status && S.status.links.regeln) || '/wp-admin/admin.php?page=vibono-points&tab=rules')}" target="_blank">Backend</a>.</p>
+		</div>`;
+	}
 
 	function tabelleBuchungen(items) {
 		if (!items.length) return '<p class="leise">Noch keine Buchungen.</p>';
@@ -643,7 +693,7 @@
 				<div class="zahl gruen"><b>${h(d.phase.label)}</b><span>${h(d.phase.day_label)}${d.phase.coaching_day ? ' · Coaching-Tag ' + d.phase.coaching_day : ''}</span></div>
 				<div class="zahl"><b>${Math.round(d.progress.overall * 100)} %</b><span>Gesamtfortschritt</span><div class="balken"><i style="width:${Math.round(d.progress.overall * 100)}%"></i></div></div>
 				<div class="zahl"><b>${Math.round(d.progress.phase * 100)} %</b><span>Fortschritt in der Phase</span><div class="balken"><i style="width:${Math.round(d.progress.phase * 100)}%"></i></div></div>
-				<div class="zahl"><b>${zahl(d.points.balance)}</b><span>Punkte · heute geöffnet: ${d.points.app_open_awarded_today ? 'ja' : 'nein'}</span></div>
+				<div class="zahl"><b>${zahl(d.points.balance)}</b><span>Punkte · heute geöffnet: ${d.points.app_open_awarded_today ? 'ja' : 'nein'} · ${h(serieKurz(d.points.streak))}</span></div>
 			</div>
 			<div class="karte gruen"><h2>Nächster Schritt</h2>${d.next_step ? '<ul class="liste">' + karteninhalt(d.next_step) + '</ul>' : '<p class="leise">Alles erledigt oder kein Startdatum gesetzt (Profil & Konto).</p>'}</div>
 			<div class="raster">

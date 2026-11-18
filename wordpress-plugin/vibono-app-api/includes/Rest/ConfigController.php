@@ -36,6 +36,7 @@ class ConfigController extends Controller {
 					'referral'    => ReferralController::enabled(),
 					'shop_points' => $shop,
 					'web_reading' => Settings::on( 'module_web_reading' ) && (bool) Settings::get( 'points_enabled' ),
+					'app_streak'  => \Vibono\AppApi\Streak::enabled() && (bool) Settings::get( 'points_enabled' ),
 				),
 				'support_url'     => (string) Settings::get( 'support_url' ),
 				'privacy_url'     => (string) Settings::get( 'privacy_url' ),

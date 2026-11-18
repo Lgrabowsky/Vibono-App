@@ -39,7 +39,8 @@ Backend (WordPress):  http://localhost:8080/wp-admin/
   Benutzer: admin       Passwort: vibono-test
 
 Testkonten (für Shop, Website und die Testzentrale), Passwort jeweils vibono-test:
-  anna@vibono-test.local   Coaching-Mitglied, Tag 5, hat schon Punkte
+  anna@vibono-test.local   Coaching-Mitglied, Tag 5, hat schon Punkte,
+                           hat die App 6 Tage in Folge geöffnet (Serie)
   ben@vibono-test.local    ohne Mitgliedschaft, von Anna geworben, startet morgen
   clara@vibono-test.local  ganz neues Konto
 
@@ -47,7 +48,8 @@ Testkonten (für Shop, Website und die Testzentrale), Passwort jeweils vibono-te
 WAS DU AUSPROBIEREN KANNST
 --------------------------
 In der Testzentrale (links das Menü):
-- Punktekonto: App täglich öffnen, Buchungen, Widerrufsfrist überspringen
+- Punktekonto: App täglich öffnen, Serie (Streak), Buchungen,
+  Widerrufsfrist überspringen
 - Lesen & Lesepunkte: Artikel lesen wie in der App, mit Lesezeit, Scrollen, Quiz
 - Freunde werben: Code prüfen, neues Konto mit Code registrieren
 - Shop & Bestellungen: im Test-Shop einkaufen und Punkte einlösen,
@@ -58,10 +60,25 @@ In der Testzentrale (links das Menü):
 - Protokoll: jede Anfrage an die Schnittstelle mit Antwort (für den Entwickler)
 
 Im Backend unter "Vibono-Punkte":
-- Punktwerte und Umrechnungskurs ändern (Kurs & Regeln)
+- Punktwerte und Umrechnungskurs ändern (Kurs & Regeln), dort auch die
+  Stufen der Serie fürs tägliche Öffnen
 - Aktionen anlegen
 - Punkte manuell buchen
 - Module ein- und ausschalten (Module & Anbindung)
+
+
+SERIE (STREAK) AUSPROBIEREN
+---------------------------
+Je mehr Tage in Folge die App geöffnet wird, desto mehr Punkte gibt es pro Tag.
+1. Oben rechts Anna wählen, links "Punktekonto" öffnen.
+2. "App öffnen" drücken: Anna ist bei Tag 7 und bekommt 8 statt 5 Punkte.
+3. "Einen Tag vorspulen", dann wieder "App öffnen": Tag 8.
+4. Einen Tag verpassen: zweimal "Einen Tag vorspulen", dann "App öffnen".
+   Ein Schutztag hält die Serie (2 pro Monat).
+5. Mit "Serie setzen" springst du direkt zu einer längeren Serie, z. B. 13 Tage,
+   dann "App öffnen" = Tag 14 mit 10 Punkten.
+Stufen, Schutztage und was beim Abreißen passiert, stellst du im Backend ein:
+Vibono-Punkte → Kurs & Regeln → "Serie fürs tägliche Öffnen".
 
 
 ZURÜCKSETZEN

@@ -210,3 +210,36 @@ add_filter(
 	10,
 	3
 );
+
+// ------------------------------------------------- Demo-Serie frisch halten
+// Die Datenbank wird beim Bauen eingerichtet. Startet jemand die Testumgebung ein paar Tage später (oder nach
+// Zuruecksetzen.bat), wären die vorbereiteten Serien (z. B. Anna: 6 Tage bis gestern) sonst schon gerissen.
+// Beim ersten Aufruf rücken deshalb die Serien und die Öffnen-Buchungen um die vergangenen Tage nach.
+add_action(
+	'init',
+	static function () {
+		if ( 'cli' === PHP_SAPI ) {
+			return; // Beim Bauen nicht, erst beim ersten echten Aufruf.
+		}
+		$gebaut = (string) get_option( 'vt_demo_datum', '' );
+		if ( '' === $gebaut || ! class_exists( 'Vibono\\AppApi\\Streak' ) ) {
+			return;
+		}
+		delete_option( 'vt_demo_datum' );
+		$tage = \Vibono\AppApi\Core\StreakMath::days_between( $gebaut, \Vibono\AppApi\Plugin::today() );
+		if ( $tage <= 0 || $tage > 3650 ) {
+			return;
+		}
+		global $wpdb;
+		$t = \Vibono\AppApi\Install::table( 'points_ledger' );
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET created_at = DATE_ADD(created_at, INTERVAL %d DAY) WHERE reason = 'app_open'", $tage ) ); // phpcs:ignore
+		foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s", \Vibono\AppApi\Streak::META ) ) as $row ) {
+			$s = maybe_unserialize( $row->meta_value );
+			if ( is_array( $s ) && ! empty( $s['last_date'] ) ) {
+				$s['last_date'] = ( new DateTimeImmutable( $s['last_date'] ) )->modify( "+$tage day" )->format( 'Y-m-d' );
+				update_user_meta( (int) $row->user_id, \Vibono\AppApi\Streak::META, $s );
+			}
+		}
+	},
+	1
+);

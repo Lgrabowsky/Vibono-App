@@ -12,6 +12,9 @@ use Vibono\AppApi\Profile;
 use Vibono\AppApi\Referral;
 use Vibono\AppApi\Settings;
 use Vibono\AppApi\SyncStore;
+use Vibono\AppApi\Plugin;
+use Vibono\AppApi\Streak;
+use Vibono\AppApi\Core\StreakMath;
 
 function vt_absaetze( array $absaetze ): string {
 	return implode( "\n\n", array_map( static fn( $p ) => str_starts_with( $p, '<' ) ? $p : '<!-- wp:paragraph --><p>' . $p . '</p><!-- /wp:paragraph -->', $absaetze ) );
@@ -410,6 +413,19 @@ function vt_demodaten_anlegen(): void {
 	Points::book( $anna, 1200, 'admin', 'Startguthaben der Testumgebung' );
 	$order = vt_bestellung_anlegen( $anna, array( array( 'product_id' => wc_get_products( array( 'limit' => 1, 'orderby' => 'menu_order', 'order' => 'ASC', 'return' => 'ids' ) )[0], 'menge' => 2 ) ), 0, 'completed' );
 	vt_frist_ueberspringen( $anna );
+
+	// Anna hat die App die letzten 6 Tage in Folge geöffnet (heute noch nicht): Beim nächsten Öffnen ist Tag 7,
+	// die Serie erreicht die Stufe „ab Tag 7“.
+	$levels = Streak::levels();
+	for ( $d = 6; $d >= 1; $d-- ) {
+		$datum = ( new DateTimeImmutable( Plugin::today() ) )->modify( "-$d day" )->format( 'Y-m-d' );
+		$tag_n = 7 - $d;
+		$pkt   = StreakMath::stage( $tag_n, $levels )['points'];
+		$id    = Points::book( $anna, $pkt, 'app_open', $tag_n > 1 ? sprintf( 'App heute geöffnet · %d Tage in Folge', $tag_n ) : 'App heute geöffnet', array( 'idempotency_key' => 'app_open:' . $anna . ':' . $datum, 'meta' => array( 'streak_day' => $tag_n ) ) );
+		$wpdb->update( Install::table( 'points_ledger' ), array( 'created_at' => get_gmt_from_date( $datum . ' 07:4' . $d . ':00' ) ), array( 'id' => $id ) );
+	}
+	update_option( 'vt_demo_datum', Plugin::today(), false ); // siehe umgebung.php: Demo-Serie frisch halten.
+	update_user_meta( $anna, Streak::META, array( 'days' => 6, 'best' => 6, 'last_date' => ( new DateTimeImmutable( Plugin::today() ) )->modify( '-1 day' )->format( 'Y-m-d' ), 'grace_month' => null, 'grace_used' => 0 ) );
 
 	// Ben wurde von Anna geworben und hat seine erste Bestellung bezahlt: Empfehlungspunkte für beide sind vorgemerkt.
 	Referral::attach( $ben, $anna );

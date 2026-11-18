@@ -2,6 +2,7 @@
 namespace Vibono\AppApi;
 
 use Vibono\AppApi\Core\PointsMath;
+use Vibono\AppApi\Core\StreakMath;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -78,6 +79,15 @@ class Admin {
 		printf( '<tr><td>Offene Punkte aller Kund*innen</td><td><strong>%s</strong> (Gegenwert aktuell %s €)</td></tr>', esc_html( number_format_i18n( $open ) ), esc_html( number_format_i18n( $open * $eff / 100, 2 ) ) );
 		printf( '<tr><td>Vorgemerkt (Widerrufsfrist läuft)</td><td>%s</td></tr>', esc_html( number_format_i18n( $pending ) ) );
 		printf( '<tr><td>Aktueller Wert je Punkt</td><td>%s Cent%s</td></tr>', esc_html( number_format_i18n( $eff, 2 ) ), $eff > (float) Settings::get( 'cents_per_point' ) ? ' (Einlöse-Aktion läuft)' : '' );
+		if ( Streak::enabled() ) {
+			$st     = Streak::stats();
+			$levels = Streak::levels();
+			$parts  = array();
+			foreach ( $levels as $i => $l ) {
+				$parts[] = sprintf( 'ab Tag %d: %d', $l['from_day'], $st['by_stage'][ $i ] ?? 0 );
+			}
+			printf( '<tr><td>Laufende Serien (App täglich öffnen)</td><td>%s, längste %s Tage<br><small>%s</small></td></tr>', esc_html( number_format_i18n( $st['active'] ) . ( 1 === $st['active'] ? ' Person' : ' Personen' ) ), esc_html( number_format_i18n( $st['longest'] ) ), esc_html( implode( ' · ', $parts ) ) );
+		}
 		echo '</tbody></table><h2>Letzte 30 Tage</h2><table class="widefat striped" style="max-width:640px"><thead><tr><th>Grund</th><th>Buchungen</th><th>Punkte</th></tr></thead><tbody>';
 		foreach ( $by as $row ) {
 			printf( '<tr><td>%s</td><td>%d</td><td>%s</td></tr>', esc_html( $labels[ $row->reason ] ?? $row->reason ), (int) $row->n, esc_html( number_format_i18n( (int) $row->p ) ) );
@@ -141,7 +151,7 @@ class Admin {
 		self::form_start( 'rules' );
 		self::field( 'cents_per_point', 'Wert eines Punktes (Cent)', 'number', 'Umrechnungskurs. Start: 1 Punkt = 1 Cent. Gilt sofort für alle neuen Einlösungen.' );
 		echo '<tr><th colspan="2"><h2>Punkte verdienen</h2></th></tr>';
-		self::field( 'earn_app_open', 'App täglich öffnen', 'number', 'Punkte einmal pro Kalendertag.' );
+		self::field( 'earn_app_open', 'App täglich öffnen', 'number', 'Punkte einmal pro Kalendertag. Mit Serie: Punkte für Tag 1.' );
 		self::field( 'earn_article_read', 'Artikel gelesen', 'number', 'Nur mit Lese-Nachweis, einmal je Artikel.' );
 		self::field( 'article_read_daily_cap', 'Max. belohnte Artikel pro Tag' );
 		self::field( 'earn_referral', 'Kund*in geworben', 'number', 'Für die werbende Person, nach der ersten bezahlten Bestellung der geworbenen Person.' );
@@ -149,6 +159,7 @@ class Admin {
 		self::field( 'referral_min_order_cents', 'Mindestbestellwert für Werbeprämie (Cent)' );
 		self::field( 'earn_purchase_per_euro', 'Punkte je Euro Einkauf', 'number', 'Warenwert ohne Versand, nach Rabatten und Punkte-Einlösung. 5 = 5 % zurück bei 1 Cent/Punkt.' );
 		self::field( 'pending_days', 'Vormerkzeit (Tage)', 'number', 'Kauf- und Empfehlungspunkte werden erst nach dieser Frist ab "Abgeschlossen" gutgeschrieben (Widerruf).' );
+		self::streak_fields();
 		echo '<tr><th colspan="2"><h2>Einlösen im Shop</h2></th></tr>';
 		self::field( 'max_redeem_percent', 'Max. Anteil am Warenwert (%)' );
 		self::field( 'min_redeem_points', 'Mindestens einzulösende Punkte' );
@@ -161,6 +172,38 @@ class Admin {
 		self::field( 'reading_quiz_mode', 'Quizfrage', 'select', 'Quizfragen pflegst du im Beitrag (Box "Vibono-Punkte: Quizfrage").', array( 'options' => array( 'off' => 'Aus', 'if_available' => 'Wenn im Beitrag hinterlegt', 'required' => 'Nur Beiträge mit Quizfrage belohnen' ) ) );
 		self::field( 'reading_eligible_types', 'Belohnte Inhaltstypen', 'list', 'Kommagetrennt, z. B. post, my_coaching, rezepte' );
 		self::form_end();
+	}
+
+	/** Serie (Streak) fürs tägliche Öffnen: Stufen-Tabelle, Schutztage, Verhalten beim Abreißen. */
+	private static function streak_fields(): void {
+		echo '<tr><th colspan="2"><h2>Serie fürs tägliche Öffnen</h2><p style="font-weight:normal;max-width:760px">Wer die App mehrere Tage in Folge öffnet, bekommt pro Tag mehr Punkte. Tag 1 bekommt den Wert von „App täglich öffnen“, ab den Tagen unten gilt der jeweils höhere Wert. Aktionen für „App geöffnet“ multiplizieren zusätzlich.</p></th></tr>';
+		self::field( 'streak_enabled', 'Serie einschalten', 'checkbox', 'Aus = jeden Tag gleich viele Punkte (Wert von „App täglich öffnen“).' );
+		$levels = StreakMath::levels( (int) Settings::get( 'earn_app_open' ), (array) Settings::get( 'streak_levels' ) );
+		echo '<tr><th scope="row">Stufen</th><td><table class="widefat striped" style="max-width:420px"><thead><tr><th>ab Tag in Folge</th><th>Punkte pro Tag</th></tr></thead><tbody>';
+		printf( '<tr><td>1</td><td>%d <small>(App täglich öffnen)</small></td></tr>', (int) $levels[0]['points'] );
+		$rows = array_slice( $levels, 1 );
+		$rows = array_pad( $rows, max( 6, count( $rows ) + 2 ), array( 'from_day' => '', 'points' => '' ) );
+		foreach ( $rows as $l ) {
+			printf(
+				'<tr><td><input type="number" min="2" step="1" class="small-text" name="streak_levels[from_day][]" value="%s"></td><td><input type="number" min="0" step="1" class="small-text" name="streak_levels[points][]" value="%s"></td></tr>',
+				esc_attr( (string) $l['from_day'] ),
+				esc_attr( (string) $l['points'] )
+			);
+		}
+		echo '</tbody></table><p class="description">Leere Zeilen werden ignoriert. Eine Stufe entfernen: beide Felder leeren. Weitere Zeilen erscheinen nach dem Speichern.</p></td></tr>';
+		self::field( 'streak_grace_per_month', 'Schutztage pro Monat', 'number', 'So viele verpasste Tage pro Kalendermonat überbrückt die Serie automatisch. Verpasste Tage zählen nicht mit und bringen keine Punkte. 0 = kein Schutz.' );
+		self::field(
+			'streak_on_break',
+			'Wenn die Serie reißt',
+			'select',
+			'Gilt, wenn mehr Tage fehlen, als Schutztage übrig sind.',
+			array(
+				'options' => array(
+					'drop_level' => 'Eine Stufe zurückfallen (z. B. von Tag 20 auf Tag 7)',
+					'reset'      => 'Neu bei Tag 1 beginnen',
+				),
+			)
+		);
 	}
 
 	private static function tab_app(): void {
@@ -250,6 +293,23 @@ class Admin {
 			} else {
 				$out[ $k ] = sanitize_text_field( (string) $v );
 			}
+		}
+		if ( 'rules' === ( $_POST['section'] ?? '' ) && isset( $_POST['streak_levels'] ) ) { // phpcs:ignore
+			$sl     = (array) wp_unslash( $_POST['streak_levels'] ); // phpcs:ignore
+			$days   = array_values( (array) ( $sl['from_day'] ?? array() ) );
+			$points = array_values( (array) ( $sl['points'] ?? array() ) );
+			$levels = array();
+			foreach ( $days as $i => $d ) {
+				if ( '' === trim( (string) $d ) || '' === trim( (string) ( $points[ $i ] ?? '' ) ) ) {
+					continue;
+				}
+				$levels[] = array( 'from_day' => absint( $d ), 'points' => absint( $points[ $i ] ) );
+			}
+			// Sortieren, Dubletten und Tag < 2 entfernen; Tag 1 ist "App täglich öffnen".
+			$out['streak_levels'] = array_slice( StreakMath::levels( 0, $levels ), 1 );
+		}
+		if ( isset( $out['streak_on_break'] ) && ! in_array( $out['streak_on_break'], StreakMath::MODES, true ) ) {
+			$out['streak_on_break'] = 'drop_level';
 		}
 		if ( 'app' === ( $_POST['section'] ?? '' ) ) { // phpcs:ignore
 			$pt = (array) wp_unslash( $_POST['phase_terms'] ?? array() ); // phpcs:ignore

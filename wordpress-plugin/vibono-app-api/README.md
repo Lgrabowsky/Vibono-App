@@ -5,7 +5,7 @@ Verbindet die App „Vibono“ mit vibono.de und stellt ein zentrales Punktesyst
 - **Login** mit dem bestehenden Vibono-Konto (Token für die App, Registrierung mit Empfehlungscode, Passwort vergessen, Konto löschen)
 - **Zwei-Wege-Synchronisation** von MyVibono-Daten: Lieblingsrezepte, erledigte Lektionen und Kurse, Gewicht, Sport, Wochenplan (ohne Uhrzeiten), Onboarding-Angaben und Wunschgewicht nach 3, 6 und 12 Monaten
 - **Tagesübersicht** für den Startbildschirm: Phase und Tag im Coaching, Fortschritt, nächster Schritt, Essen/Bewegung/Wissen/Sonstiges, 3 Rezepte, Vibono-Tipp, Tipp des Tages
-- **Vibono-Punkte**: tägliches Öffnen, nachweislich gelesene Artikel (App und Website), Kundenwerbung, Einkäufe; Einlösen im WooCommerce-Shop; Umrechnungskurs und Aktionen im Backend
+- **Vibono-Punkte**: tägliches Öffnen mit Serie (je mehr Tage in Folge, desto mehr Punkte; Stufen einstellbar), nachweislich gelesene Artikel (App und Website), Kundenwerbung, Einkäufe; Einlösen im WooCommerce-Shop; Umrechnungskurs und Aktionen im Backend
 - **Energiedichte-Rechner**: Lebensmittelsuche, Rezept-Scan und Foto-Schätzung über die Claude API (Schlüssel nur auf dem Server)
 
 API-Vertrag: [`docs/openapi.yaml`](docs/openapi.yaml) (Basis `https://www.vibono.de/wp-json/vibono/v1`).
@@ -28,7 +28,7 @@ Voraussetzungen: WordPress ≥ 6.2, PHP ≥ 8.1, WooCommerce (für Shop-Punkte),
 4. Unbedingt zuerst auf einer **Staging-Kopie** testen.
 5. Backend → **Vibono-Punkte → Module & Anbindung**: Systemprüfung ansehen. Nach der Aktivierung ist nur die App-Schnittstelle an; Shop, Freunde werben, Lesepunkte auf der Website und das Schreiben in MyVibono-Felder sind aus und werden schrittweise eingeschaltet (siehe [ANBINDUNG.md](docs/ANBINDUNG.md)).
 6. Backend → **Vibono-Punkte → App-Schnittstelle**: Inhaltstypen, Kurs-Zuordnung zu den Phasen und MyVibono-Speicherorte prüfen (siehe „Annahmen“).
-7. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte festlegen. Start: 1 Punkt = 1 Cent.
+7. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte und Stufen der Serie fürs tägliche Öffnen festlegen. Start: 1 Punkt = 1 Cent.
 8. Falls der Server den `Authorization`-Header nicht an PHP durchreicht (manche Apache-Setups), in `.htaccess` ergänzen:
    `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`
 
@@ -53,7 +53,7 @@ Solange die Speicherorte nicht eingetragen sind, speichert das Plugin App-Daten 
 
 ```bash
 composer install
-composer test        # Unit-Tests der Rechenregeln (Token, Punkte, Aktionen, Lese-Nachweis, Sync, Coaching-Kalender)
+composer test        # Unit-Tests der Rechenregeln (Token, Punkte, Aktionen, Serie, Lese-Nachweis, Sync, Coaching-Kalender)
 ```
 
 WP-CLI: `wp vibono check`, `wp vibono migrate-raf --dry-run`, `wp vibono confirm-pending`, `wp vibono balance <email>`, `wp vibono export-points > punkte.csv`, `wp vibono reconcile-orders --dry-run`, `wp vibono restore-myvibono --dry-run`.
