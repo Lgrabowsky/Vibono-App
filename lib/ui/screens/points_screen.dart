@@ -9,6 +9,7 @@ import '../../theme/vibono_colors.dart';
 import '../../theme/vibono_theme.dart';
 import '../navigation.dart';
 import '../widgets/common.dart';
+import '../widgets/streak.dart';
 import 'referral_screen.dart';
 
 /// Punkte: Stand, Aktionen, wie man sammelt, Verlauf.
@@ -73,6 +74,12 @@ class PointsScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             _CampaignBanner(campaign: c, showRedeem: showValue),
           ],
+          if (summary.value?.streak.enabled ?? false) ...[
+            const SizedBox(height: 20),
+            const SectionLabel('Deine Serie'),
+            const SizedBox(height: 6),
+            StreakLadder(streak: ref.watch(appStreakProvider) ?? summary.value!.streak),
+          ],
           const SizedBox(height: 20),
           const SectionLabel('So sammelst du Punkte'),
           const SizedBox(height: 4),
@@ -84,6 +91,9 @@ class PointsScreen extends ConsumerWidget {
                   dense: true,
                   leading: Icon(_icon(e.key), color: VibonoColors.green),
                   title: Text(reasonLabels[e.key]!, style: VibonoText.body),
+                  subtitle: e.key == 'app_open' && summary.value!.streak.enabled
+                      ? const Text('Mehr Punkte, je mehr Tage in Folge', style: VibonoText.small)
+                      : null,
                   trailing: Text('+${formatPoints(e.value)}', style: VibonoText.cardTitle),
                   onTap: e.key == 'referral' && showReferral ? () => push(context, const ReferralScreen()) : null,
                 ),

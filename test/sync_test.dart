@@ -60,11 +60,19 @@ void main() {
     expect(() => api.completeReading(s.sessionId), throwsA(anything));
   });
 
-  test('tägliche Öffnung gibt nur einmal Punkte', () async {
+  test('tägliche Öffnung gibt nur einmal Punkte, Serie zählt weiter', () async {
     final a = await api.reportAppOpen();
     final b = await api.reportAppOpen();
-    expect(a.awardedPoints, 5);
+    // Demo-Start: 6 Tage in Folge bis gestern → heute Tag 7, Stufe „ab Tag 7“ = 8 Punkte.
+    expect(a.awardedPoints, 8);
+    expect(a.streak?.days, 7);
+    expect(a.streak?.event, 'continued');
     expect(b.awardedPoints, 0);
     expect(b.alreadyAwarded, isTrue);
+    expect(b.streak?.event, 'same_day');
+    final p = await api.points();
+    expect(p.streak.enabled, isTrue);
+    expect(p.streak.days, 7);
+    expect(p.streak.nextStage?.fromDay, 14);
   });
 }

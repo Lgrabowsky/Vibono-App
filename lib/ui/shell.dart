@@ -13,6 +13,7 @@ import 'screens/recipes_screen.dart';
 import 'screens/today_screen.dart';
 import 'screens/weekplan_screen.dart';
 import 'widgets/common.dart';
+import 'widgets/streak.dart';
 
 /// Hauptgerüst mit den Tabs Heute · Rezepte · Coaching · Wochenplan · Mehr.
 /// Nicht ausgewählt = Vibono-Grau, ausgewählt = Vibono-Grün.
@@ -48,7 +49,8 @@ class _ShellState extends ConsumerState<Shell> {
     try {
       final r = await ref.read(apiProvider).reportAppOpen();
       ref.read(pointsBalanceProvider.notifier).set(r.balance);
-      if (mounted && r.awardedPoints > 0) showPointsToast(context, r.awardedPoints, 'Schön, dass du heute da bist!');
+      if (r.streak != null) ref.read(appStreakProvider.notifier).set(r.streak);
+      if (mounted && r.awardedPoints > 0) showPointsToast(context, r.awardedPoints, streakToastText(r.streak));
     } catch (_) {/* offline: der Server holt das nicht nach */}
   }
 

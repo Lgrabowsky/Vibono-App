@@ -1,5 +1,6 @@
 import 'content.dart';
 import 'json.dart';
+import 'points.dart';
 
 enum PhaseKey { vorbereitung, phase1, phase2, phase3 }
 
@@ -67,6 +68,7 @@ class CoachingDay {
     required this.tipOfTheDay,
     required this.pointsBalance,
     required this.appOpenAwardedToday,
+    this.streak = AppStreak.disabled,
   });
 
   final DateTime date;
@@ -84,6 +86,7 @@ class CoachingDay {
   final String tipOfTheDay;
   final int pointsBalance;
   final bool appOpenAwardedToday;
+  final AppStreak streak;
 
   factory CoachingDay.fromJson(Json j) {
     final sections = asMap(j['sections']) ?? const {};
@@ -106,6 +109,7 @@ class CoachingDay {
       tipOfTheDay: asString(asMap(j['tip_of_the_day'])?['text']) ?? '',
       pointsBalance: asInt(points['balance']) ?? 0,
       appOpenAwardedToday: asBool(points['app_open_awarded_today']),
+      streak: AppStreak.fromJson(asMap(points['streak'])),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../../domain/app_streak_rules.dart';
 import '../../domain/coaching_plan.dart';
 import '../../domain/food_database.dart';
 import '../../domain/recipe_picker.dart';
@@ -442,7 +443,7 @@ class MockVibonoApi implements VibonoApi {
       'recipes': [for (final r in recipes) r.toJson()],
       'vibono_tip': tip.toJson(),
       'tip_of_the_day': {'id': null, 'text': mockTipsOfTheDay[dayIndex % mockTipsOfTheDay.length]},
-      'points': {'balance': _balance, 'app_open_awarded_today': appOpenToday},
+      'points': {'balance': _balance, 'app_open_awarded_today': appOpenToday, 'streak': _streakView},
     });
   }
 
@@ -475,6 +476,7 @@ class MockVibonoApi implements VibonoApi {
       'value_cents': _balance,
       'earn_rules': {'app_open': 5, 'article_read': 10, 'referral': 1000, 'referral_friend': 200, 'purchase_per_euro': 1},
       'campaigns': _campaigns,
+      'streak': _streakView,
     });
   }
 
@@ -485,15 +487,41 @@ class MockVibonoApi implements VibonoApi {
     return asList(l, LedgerEntry.fromJson);
   }
 
+  // ---------- Serie fürs tägliche Öffnen ----------
+
+  static const _streakRules = AppStreakRules();
+
+  /// Demo-Start: 6 Tage in Folge bis gestern, damit heute Stufe „ab Tag 7“ erreicht wird.
+  Json get _streakState {
+    final stored = asMap(_store.readJson('mock.streak'));
+    if (stored != null) return stored;
+    return {
+      'days': 6,
+      'best': 6,
+      'last_date': _day(DateTime.now().subtract(const Duration(days: 1))),
+      'grace_month': null,
+      'grace_used': 0,
+    };
+  }
+
+  Json get _streakView => _streakRules.view(_streakState, _day(DateTime.now()));
+
   @override
   Future<AwardResult> reportAppOpen() async {
     await _wait();
     final today = _day(DateTime.now());
+    final (state, event, bridged) = _streakRules.advance(_streakState, today);
+    final previous = asInt(_streakState['days']) ?? 0;
+    await _store.writeJson('mock.streak', state);
+    final view = {..._streakRules.view(state, today), 'event': event, 'bridged_days': bridged, 'previous_days': previous};
+    final streak = AppStreak.fromJson(view);
     if (_store.readString('mock.appopen') == today) {
-      return AwardResult(awardedPoints: 0, alreadyAwarded: true, balance: _balance);
+      return AwardResult(awardedPoints: 0, alreadyAwarded: true, balance: _balance, streak: streak);
     }
     await _store.writeString('mock.appopen', today);
-    return _award(5, 'app_open', 'Tägliches Öffnen der App');
+    final day = streak.todayDay;
+    final r = await _award(streak.todayPoints, 'app_open', day > 1 ? 'App heute geöffnet · $day Tage in Folge' : 'App heute geöffnet');
+    return AwardResult(awardedPoints: r.awardedPoints, alreadyAwarded: false, balance: r.balance, streak: streak);
   }
 
   Set<int> get _rewardedReads => {...((_store.readJson('mock.reads') as List?) ?? const []).cast<int>()};

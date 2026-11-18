@@ -20,6 +20,7 @@ import '../widgets/ampel.dart';
 import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
 import '../widgets/onboarding_prompt.dart';
+import '../widgets/streak.dart';
 import 'coaching_screen.dart' show lessonKindLabel;
 import 'points_screen.dart';
 import 'tips_screen.dart';
@@ -270,6 +271,7 @@ class _DayView extends ConsumerWidget {
         ),
       ?mealFor(MealSlot.abend),
     ];
+    final streak = ref.watch(appStreakProvider) ?? day.streak;
     final doneCount = steps.where((s) => s.done).length;
     final focus = rel == 0 ? steps.indexWhere((s) => !s.done) : -1;
 
@@ -300,6 +302,10 @@ class _DayView extends ConsumerWidget {
           _DayRing(done: doneCount, total: steps.length),
         ]),
         if (rel == 0) ...[const SizedBox(height: 16), const OnboardingPrompt()],
+        if (rel == 0 && streak.enabled) ...[
+          const SizedBox(height: 14),
+          StreakCard(streak: streak, onTap: () => push(context, const PointsScreen())),
+        ],
         const SizedBox(height: 22),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           const Expanded(

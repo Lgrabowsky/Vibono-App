@@ -221,6 +221,21 @@ class PointsBalance extends Notifier<int?> {
 }
 
 final pointsBalanceProvider = NotifierProvider<PointsBalance, int?>(PointsBalance.new);
+
+/// Serie fürs tägliche Öffnen, wie sie die letzte Antwort auf „App geöffnet“
+/// geliefert hat. `null`, bis die App sich heute gemeldet hat; dann gilt der
+/// Stand aus „Heute“ bzw. „Punkte“.
+class AppStreakState extends Notifier<AppStreak?> {
+  @override
+  AppStreak? build() {
+    ref.watch(sessionProvider.select((s) => s.me?.id));
+    return null;
+  }
+
+  void set(AppStreak? streak) => state = streak;
+}
+
+final appStreakProvider = NotifierProvider<AppStreakState, AppStreak?>(AppStreakState.new);
 final pointsProvider = FutureProvider<PointsSummary>((ref) => ref.watch(apiProvider).points());
 final ledgerProvider = FutureProvider<List<LedgerEntry>>((ref) => ref.watch(apiProvider).ledger());
 /// `null`, solange „Freunde werben“ auf vibono.de ausgeschaltet ist.
