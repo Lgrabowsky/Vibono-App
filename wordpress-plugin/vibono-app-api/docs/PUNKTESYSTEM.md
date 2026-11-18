@@ -6,13 +6,33 @@ Ein zentrales Punktekonto pro Vibono-Konto, das in der App und im Shop auf vibon
 
 | Anlass | Startwert (Vorschlag) | Regeln |
 |---|---|---|
-| App täglich öffnen | 5 | einmal pro Kalendertag (Europe/Berlin), `POST /points/app-open` |
+| App täglich öffnen | 5 (Tag 1 der Serie) | einmal pro Kalendertag (Europe/Berlin), `POST /points/app-open`. Mit Serie mehr Punkte, siehe unten |
 | Artikel nachweislich gelesen | 10 | einmal je Artikel, höchstens 3 Artikel pro Tag, Lese-Nachweis siehe unten. Gilt in App **und** auf der Website |
 | Kund*in geworben | 500 (= 5 €) | wenn die geworbene Person ihre erste bezahlte Bestellung ab 15 € macht. Vorgemerkt bis 14 Tage nach "Abgeschlossen" |
 | Willkommensbonus für Geworbene | 200 | mit der ersten Bestellung, ebenfalls vorgemerkt |
 | Einkauf im Shop | 5 je Euro | Warenwert ohne Versand, nach Rabatten und Punkte-Einlösung. Vorgemerkt bis 14 Tage nach "Abgeschlossen", bei Storno/Erstattung verfallen sie |
 
 Alle Werte sind im Backend unter **Vibono-Punkte → Kurs & Regeln** änderbar. Die Startwerte sind Vorschläge, keine Vorgabe von Vibono, und sollten vor dem Start kalkuliert werden (5 Punkte je Euro sind 5 % Rabatt bei 1 Cent je Punkt).
+
+## Serie (Streak) fürs tägliche Öffnen
+
+Wer die App mehrere Tage in Folge öffnet, bekommt pro Tag mehr Punkte. Einstellungen unter **Vibono-Punkte → Kurs & Regeln → Serie fürs tägliche Öffnen** (alles Vorschläge):
+
+| Tage in Folge | Punkte pro Tag |
+|---|---|
+| 1–2 | 5 (Wert „App täglich öffnen“) |
+| ab 3 | 6 |
+| ab 7 | 8 |
+| ab 14 | 10 |
+| ab 30 | 12 |
+
+- Stufen frei einstellbar (beliebig viele, „ab Tag X: Y Punkte“). Die Serie lässt sich ganz ausschalten, dann gibt es jeden Tag den Grundwert.
+- **Schutztage:** Verpasst jemand einen Tag, hält die Serie, solange im laufenden Kalendermonat Schutztage übrig sind (Start: 2 pro Monat). Verpasste Tage zählen nicht mit und bringen keine Punkte.
+- **Wenn die Serie reißt** (mehr Lücken als Schutztage), einstellbar: *eine Stufe zurückfallen* (Start, z. B. von Tag 20 auf Tag 7, also weiter mit 8 statt 10 Punkten) oder *neu bei Tag 1 beginnen*.
+- Aktionen für „App geöffnet“ multiplizieren die Punkte der Stufe (z. B. dreifach: Tag 7 → 24 Punkte).
+- Kosten im Blick: Wer 30 Tage am Stück öffnet, bekommt mit den Startwerten 5+5+6×4+8×7+10×16+12 = 262 Punkte (2,62 €) im ersten Monat, danach 12 Punkte pro Tag (ca. 3,60 € im Monat).
+- Tag = Kalendertag in der Zeitzone der Website. Der Stand liegt im Nutzer-Meta `_vibono_app_streak` (wird mit dem Konto gelöscht, ist im Datenexport enthalten). Beim ersten Öffnen nach dem Update wird eine laufende Serie aus den bisherigen Öffnen-Buchungen übernommen.
+- Die App bekommt den Stand bei `POST /points/app-open`, `GET /points` und `GET /today` (Feld `streak`, siehe openapi.yaml). Die Übersicht im Backend zeigt, wie viele Personen gerade eine Serie haben und auf welcher Stufe.
 
 ## Punkte einlösen
 

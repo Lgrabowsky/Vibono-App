@@ -197,21 +197,32 @@ class Points {
 			'value_cents'               => (int) floor( $balance * $eff ),
 			'earn_rules'                => $rules,
 			'campaigns'                 => array_map( array( Campaigns::class, 'format' ), Campaigns::visible() ),
+			'streak'                    => Streak::view( $user_id ),
 		);
 	}
 
-	/** Tägliche App-Öffnung. */
+	/**
+	 * Tägliche App-Öffnung. Mit eingeschalteter Serie (Streak) richten sich die Punkte nach der
+	 * Stufe der Serie; eine laufende Aktion für "App geöffnet" multipliziert sie wie gewohnt.
+	 */
 	public static function app_open( int $user_id ): array {
+		$streak = Streak::enabled() ? Streak::register_open( $user_id ) : null;
+		$base   = $streak ? (int) $streak['today']['points'] : (int) Settings::get( 'earn_app_open' );
+		$label  = $streak && $streak['today']['day'] > 1
+			? sprintf( 'App heute geöffnet · %d Tage in Folge', $streak['today']['day'] )
+			: 'App heute geöffnet';
 		$r = self::earn(
 			$user_id,
 			'app_open',
-			(int) Settings::get( 'earn_app_open' ),
+			$base,
 			array(
 				'idempotency_key' => 'app_open:' . $user_id . ':' . Plugin::today(),
-				'label'           => 'App heute geöffnet',
+				'label'           => $label,
+				'meta'            => $streak ? array( 'streak_day' => $streak['today']['day'], 'streak_event' => $streak['event'] ) : null,
 			)
 		);
 		$r['balance'] = self::balance( $user_id );
+		$r['streak']  = $streak ?? array( 'enabled' => false );
 		unset( $r['entry_id'] );
 		return $r;
 	}

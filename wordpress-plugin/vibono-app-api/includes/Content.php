@@ -367,6 +367,7 @@ class Content {
 			'points'         => array(
 				'balance'                => Points::balance( $user_id ),
 				'app_open_awarded_today' => Points::app_open_awarded_today( $user_id ),
+				'streak'                 => Streak::view( $user_id ),
 			),
 		);
 	}

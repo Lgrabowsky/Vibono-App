@@ -12,11 +12,11 @@ Nur in `mu-plugin/` und nur aktiv, wenn `wp-config.php` die Konstante `VIBONO_TE
 |---|---|
 | `inhaltstypen.php` | Inhaltstypen, die auf vibono.de das Theme liefert: `my_coaching` (Taxonomie `kurs`), `rezepte` (`rezeptmerkmal`), `apptipps`, `energiedichte` |
 | `mitgliedschaften.php` | Ersatz für WooCommerce Memberships (kostenpflichtig): genau die Funktionen, die `includes/Membership.php` aufruft. Mitglied = Nutzer-Meta `_vt_mitglied`, gesperrter Inhalt = Beitrags-Meta `_vt_nur_mitglieder` |
-| `umgebung.php` | E-Mails abfangen (Testzentrale → E-Mails), keine Verbindungen nach außen außer `api.anthropic.com`, `shop_url`/`support_url`/`privacy_url` auf die lokale Seite, Hinweise im Backend, stündliche Plugin-Aufgabe ohne WP-Cron, Beispielantwort für Foto/Rezept-Scan ohne Claude-Schlüssel |
-| `helfer.php` | Testhelfer unter `/wp-json/vibono-test/v1/`: Bestellungen anlegen und Status ändern (über WooCommerce, die Punkte bucht das Plugin über seine Hooks), Widerrufsfrist überspringen, einen Tag vorspulen, Mitgliedschaft umschalten, Aktionen (über `Campaigns::save`) |
+| `umgebung.php` | Demo-Serien beim ersten Aufruf auf das heutige Datum nachziehen (die Datenbank entsteht beim Bauen), E-Mails abfangen (Testzentrale → E-Mails), keine Verbindungen nach außen außer `api.anthropic.com`, `shop_url`/`support_url`/`privacy_url` auf die lokale Seite, Hinweise im Backend, stündliche Plugin-Aufgabe ohne WP-Cron, Beispielantwort für Foto/Rezept-Scan ohne Claude-Schlüssel |
+| `helfer.php` | Testhelfer unter `/wp-json/vibono-test/v1/`: Bestellungen anlegen und Status ändern (über WooCommerce, die Punkte bucht das Plugin über seine Hooks), Widerrufsfrist überspringen, einen Tag vorspulen (verschiebt auch den letzten Tag der Serie), Serie fürs Öffnen setzen, Mitgliedschaft umschalten, Aktionen (über `Campaigns::save`) |
 | `testzentrale/` | Oberfläche unter `/testzentrale/`. Ruft `/wp-json/vibono/v1/` wie die App auf (Login mit Token, `credentials: omit`), zeigt jede Antwort und protokolliert alle Anfragen |
 
-Demodaten (`demodaten.php`): 9 Lektionen in 4 Kursen (ab Phase 2 nur für Mitglieder, zwei mit Quizfrage), 8 Rezepte mit Zutaten und Portionen, 5 Vibono-Tipps, 7 Tipps des Tages, 30 Lebensmittel, 4 Produkte, Konten Anna (Mitglied, Tag 5, Punkteverlauf), Ben (von Anna geworben, erste Bestellung offen), Clara (neu), zwei Aktionen. Alle Module sind eingeschaltet.
+Demodaten (`demodaten.php`): 9 Lektionen in 4 Kursen (ab Phase 2 nur für Mitglieder, zwei mit Quizfrage), 8 Rezepte mit Zutaten und Portionen, 5 Vibono-Tipps, 7 Tipps des Tages, 30 Lebensmittel, 4 Produkte, Konten Anna (Mitglied, Tag 5, Punkteverlauf, 6 Tage Serie bis gestern), Ben (von Anna geworben, erste Bestellung offen), Clara (neu), zwei Aktionen. Alle Module sind eingeschaltet.
 
 ## Bauen
 
@@ -38,7 +38,7 @@ cd dist/Vibono-Test/system && php -S 127.0.0.1:8080 -t wp router.php
 python3 selbsttest.py http://localhost:8080   # gegen eine frisch gebaute bzw. zurückgesetzte Umgebung, ca. 2,5 Minuten
 ```
 
-Prüft über die Schnittstelle: Login/Refresh/Logout, App-Öffnen inkl. Tageslimit, Aktionen (Verdienen und Einlösen), Paywall, Inhalte und Filter, Zutaten, Coaching-Tag, Profil inkl. Validierung, Sync (Konflikte, Cursor), Freunde werben (Mindestwert, nur erste Bestellung, Selbstwerbung per Adresse, Storno), Einkaufspunkte (Frist ab „abgeschlossen“, Storno), Lese-Nachweis (zu früh, nicht gescrollt, doppelt, Quiz falsch/richtig), Energiedichte, Passwort-Mail, Kontolöschung, Token-Schutz.
+Prüft über die Schnittstelle: Login/Refresh/Logout, App-Öffnen inkl. Tageslimit, Serie (Stufen, Schutztag, Abreißen mit „eine Stufe zurück“), Aktionen (Verdienen und Einlösen), Paywall, Inhalte und Filter, Zutaten, Coaching-Tag, Profil inkl. Validierung, Sync (Konflikte, Cursor), Freunde werben (Mindestwert, nur erste Bestellung, Selbstwerbung per Adresse, Storno), Einkaufspunkte (Frist ab „abgeschlossen“, Storno), Lese-Nachweis (zu früh, nicht gescrollt, doppelt, Quiz falsch/richtig), Energiedichte, Passwort-Mail, Kontolöschung, Token-Schutz.
 
 Zusätzlich im Browser geprüft (Playwright): Punkte im klassischen Warenkorb einlösen und mit Nachnahme bestellen, Lesepunkte auf der Website über `reading-tracker.js`, Module im Backend aus- und einschalten, alle Bereiche der Testzentrale.
 

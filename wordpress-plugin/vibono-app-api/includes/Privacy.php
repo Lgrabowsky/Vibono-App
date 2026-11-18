@@ -54,6 +54,7 @@ class Privacy {
 			Referral::CODE_META        => 'Empfehlungscode',
 			Referral::BY_META          => 'Geworben von (Konto-ID)',
 			'_vibono_referred_at'      => 'Geworben am',
+			Streak::META               => 'Serie beim Öffnen der App',
 		);
 		foreach ( $labels as $key => $label ) {
 			$v = get_user_meta( $uid, $key, true );

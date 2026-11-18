@@ -28,7 +28,17 @@ class Settings {
 			// --- Punkte ---------------------------------------------------
 			'points_enabled'            => true,
 			'cents_per_point'           => 1.0,   // 1 Punkt = 1 Cent (Vorgabe Vibono).
-			'earn_app_open'             => 5,     // Vorschlag.
+			'earn_app_open'             => 5,     // Vorschlag. Grundwert = Tag 1 der Serie.
+			// Serie (Streak) fürs tägliche Öffnen: je mehr Tage in Folge, desto mehr Punkte pro Tag (Vorschlag).
+			'streak_enabled'            => true,
+			'streak_levels'             => array(
+				array( 'from_day' => 3, 'points' => 6 ),
+				array( 'from_day' => 7, 'points' => 8 ),
+				array( 'from_day' => 14, 'points' => 10 ),
+				array( 'from_day' => 30, 'points' => 12 ),
+			),
+			'streak_grace_per_month'    => 2,     // Schutztage: so viele verpasste Tage pro Monat halten die Serie.
+			'streak_on_break'           => 'drop_level', // reset = zurück auf Tag 1 | drop_level = eine Stufe zurück.
 			'earn_article_read'         => 10,    // Vorschlag.
 			'article_read_daily_cap'    => 3,     // Max. belohnte Artikel pro Tag.
 			'earn_referral'             => 500,   // Werbende Person, wenn Freund*in die erste Bestellung bezahlt hat.

@@ -618,6 +618,9 @@ paths:
       tags:
       - Punkte
       summary: Tägliche App-Öffnung melden (einmal je Kalendertag Europe/Berlin, idempotent)
+      description: |
+        Zählt die Serie (Streak) weiter und vergibt die Punkte der erreichten Stufe. Die Antwort enthält
+        den neuen Stand der Serie unter streak (inkl. event).
       responses:
         '200':
           description: OK. Bei bereits gemeldetem Tag awarded_points = 0 und already_awarded = true.
@@ -972,6 +975,9 @@ components:
             web_reading:
               type: boolean
               description: Lesepunkte auch für Artikel, die auf der Website gelesen werden
+            app_streak:
+              type: boolean
+              description: Serie (Streak) fürs tägliche Öffnen; mehr Punkte pro Tag, je länger die Serie
         support_url:
           type: string
           format: uri
@@ -1539,6 +1545,8 @@ components:
               type: integer
             app_open_awarded_today:
               type: boolean
+            streak:
+              $ref: '#/components/schemas/Streak'
     PointsSummary:
       type: object
       properties:
@@ -1566,6 +1574,93 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Campaign'
+        streak:
+          $ref: '#/components/schemas/Streak'
+    Streak:
+      type: object
+      description: |
+        Serie fürs tägliche Öffnen der App. Je mehr Tage in Folge, desto mehr Punkte pro Tag (Stufen im Backend
+        einstellbar). Verpasste Tage überbrücken Schutztage (grace_per_month je Kalendermonat); reicht das nicht,
+        greift on_break. Eine laufende Aktion für app_open multipliziert die Punkte der Stufe.
+        Bei enabled = false fehlen alle anderen Felder.
+      required:
+      - enabled
+      properties:
+        enabled:
+          type: boolean
+        days:
+          type: integer
+          description: Tage in Folge (inkl. heute, wenn heute geöffnet). 0 = keine laufende Serie.
+          example: 7
+        best:
+          type: integer
+          description: Längste Serie bisher
+        opened_today:
+          type: boolean
+        alive:
+          type: boolean
+          description: false = Serie ist gerissen; beim nächsten Öffnen greift on_break
+        today:
+          type: object
+          description: Tag und Punkte für heute (nach dem Öffnen bzw. falls heute geöffnet würde), ohne Aktion
+          properties:
+            day:
+              type: integer
+            points:
+              type: integer
+        stage:
+          $ref: '#/components/schemas/StreakLevel'
+        next_stage:
+          type: object
+          nullable: true
+          description: null = höchste Stufe erreicht
+          properties:
+            from_day:
+              type: integer
+            points:
+              type: integer
+            days_left:
+              type: integer
+        levels:
+          type: array
+          description: Alle Stufen, aufsteigend; die erste gilt ab Tag 1
+          items:
+            $ref: '#/components/schemas/StreakLevel'
+        grace_per_month:
+          type: integer
+        grace_left:
+          type: integer
+          description: Übrige Schutztage im laufenden Monat
+        on_break:
+          type: string
+          enum:
+          - drop_level
+          - reset
+          description: drop_level = eine Stufe zurück, reset = neu bei Tag 1
+        event:
+          type: string
+          description: Nur in der Antwort auf POST /points/app-open
+          enum:
+          - first
+          - continued
+          - bridged
+          - broken
+          - same_day
+        bridged_days:
+          type: integer
+          description: Nur bei event = bridged; so viele Schutztage wurden heute verbraucht
+        previous_days:
+          type: integer
+          description: Serie vor dem heutigen Öffnen
+    StreakLevel:
+      type: object
+      properties:
+        from_day:
+          type: integer
+          example: 7
+        points:
+          type: integer
+          example: 8
     Campaign:
       type: object
       properties:
@@ -1658,6 +1753,9 @@ components:
           $ref: '#/components/schemas/Campaign'
         balance:
           type: integer
+        streak:
+          $ref: '#/components/schemas/Streak'
+          description: Nur bei POST /points/app-open
     ReadingSession:
       type: object
       properties:
