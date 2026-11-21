@@ -70,7 +70,8 @@ abstract final class WeekPlan {
     required PhaseKey phase,
     required Json? Function(String key) stored,
   }) {
-    final auto = RecipePicker.forDate(date, recipes, profile, phase);
+    // Gesperrte Rezepte (Mitgliedschaft, exklusiv gegen Punkte) nicht automatisch vorschlagen.
+    final auto = RecipePicker.forDate(date, recipes.where((r) => !r.locked).toList(), profile, phase);
     final fallbackPortions = profile.householdSize.clamp(1, maxPortions);
     return [
       for (final s in MealSlot.values)

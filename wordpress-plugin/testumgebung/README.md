@@ -16,7 +16,7 @@ Nur in `mu-plugin/` und nur aktiv, wenn `wp-config.php` die Konstante `VIBONO_TE
 | `helfer.php` | Testhelfer unter `/wp-json/vibono-test/v1/`: Bestellungen anlegen und Status ändern (über WooCommerce, die Punkte bucht das Plugin über seine Hooks), Widerrufsfrist überspringen, einen Tag vorspulen (verschiebt auch den letzten Tag der Serie), Serie fürs Öffnen setzen, Mitgliedschaft umschalten, Aktionen (über `Campaigns::save`) |
 | `testzentrale/` | Oberfläche unter `/testzentrale/`. Ruft `/wp-json/vibono/v1/` wie die App auf (Login mit Token, `credentials: omit`), zeigt jede Antwort und protokolliert alle Anfragen |
 
-Demodaten (`demodaten.php`): 9 Lektionen in 4 Kursen (ab Phase 2 nur für Mitglieder, zwei mit Quizfrage), 8 Rezepte mit Zutaten und Portionen, 5 Vibono-Tipps, 7 Tipps des Tages, 30 Lebensmittel, 4 Produkte, Konten Anna (Mitglied, Tag 5, Punkteverlauf, 6 Tage Serie bis gestern), Ben (von Anna geworben, erste Bestellung offen), Clara (neu), zwei Aktionen. Alle Module sind eingeschaltet.
+Demodaten (`demodaten.php`): 9 Lektionen in 4 Kursen (ab Phase 2 nur für Mitglieder, zwei mit Quizfrage), 8 Rezepte mit Zutaten und Portionen (plus ein exklusives), 5 Vibono-Tipps (plus ein exklusiver), ein eBook (PDF), 4 Prämien (exklusives Rezept 300, exklusiver Tipp 200, eBook 500, 10 € Rabatt auf die Verlängerung 1000 Punkte), 7 Tipps des Tages, 30 Lebensmittel, 5 Produkte (darunter „Vibono-Coaching: Verlängerung 12 Monate“ für den Rabatt-Gutschein), Konten Anna (Mitglied, Tag 5, 2.500 Punkte, 6 Tage Serie bis gestern), Ben (von Anna geworben, erste Bestellung offen), Clara (neu), zwei Aktionen. Alle Module sind eingeschaltet.
 
 ## Bauen
 
@@ -38,9 +38,9 @@ cd dist/Vibono-Test/system && php -S 127.0.0.1:8080 -t wp router.php
 python3 selbsttest.py http://localhost:8080   # gegen eine frisch gebaute bzw. zurückgesetzte Umgebung, ca. 2,5 Minuten
 ```
 
-Prüft über die Schnittstelle: Login/Refresh/Logout, App-Öffnen inkl. Tageslimit, Serie (Stufen, Schutztag, Abreißen mit „eine Stufe zurück“), Aktionen (Verdienen und Einlösen), Paywall, Inhalte und Filter, Zutaten, Coaching-Tag, Profil inkl. Validierung, Sync (Konflikte, Cursor), Freunde werben (Mindestwert, nur erste Bestellung, Selbstwerbung per Adresse, Storno), Einkaufspunkte (Frist ab „abgeschlossen“, Storno), Lese-Nachweis (zu früh, nicht gescrollt, doppelt, Quiz falsch/richtig), Energiedichte, Passwort-Mail, Kontolöschung, Token-Schutz.
+Prüft über die Schnittstelle: Login/Refresh/Logout, App-Öffnen inkl. Tageslimit, Serie (Stufen, Schutztag, Abreißen mit „eine Stufe zurück“), Aktionen (Verdienen und Einlösen), Paywall, Inhalte und Filter, Zutaten, Coaching-Tag, Profil inkl. Validierung, Sync (Konflikte, Cursor), Freunde werben (Mindestwert, nur erste Bestellung, Selbstwerbung per Adresse, Storno), keine Einkaufspunkte und kein Guthaben an der Kasse (Standard seit 21.11.2026), Coaching-Fortschritt (Lektion einmal, Kursbonus), Prämien (App-Katalog ohne Verlängerungsrabatt, exklusiver Beitrag gesperrt und nach Einlösen lesbar, zu wenig Punkte, doppelt einlösen, eBook über signierten Link, manipulierter Link, Gutschein nur auf der Website, Einlöse-Grenze), Lese-Nachweis (zu früh, nicht gescrollt, doppelt, Quiz falsch/richtig), Energiedichte, Passwort-Mail, Kontolöschung, Token-Schutz.
 
-Zusätzlich im Browser geprüft (Playwright): Punkte im klassischen Warenkorb einlösen und mit Nachnahme bestellen, Lesepunkte auf der Website über `reading-tracker.js`, Module im Backend aus- und einschalten, alle Bereiche der Testzentrale.
+Zusätzlich im Browser geprüft (Playwright): exklusiven Tipp auf der Website freischalten, Prämien unter Mein Konto, Verlängerungs-Gutschein im Warenkorb (99 € → 89 €), Lesepunkte auf der Website über `reading-tracker.js`, Module im Backend aus- und einschalten, alle Bereiche der Testzentrale.
 
 ## Beobachtung für die Entwicklung
 

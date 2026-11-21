@@ -267,7 +267,17 @@ class Content {
 				)
 			);
 		}
-		return $ids;
+		// Exklusive Rezepte (Prämien) nie automatisch vorschlagen, solange sie nicht freigeschaltet sind.
+		$open = array_values(
+			array_filter(
+				$ids,
+				static function ( $id ) use ( $user_id ) {
+					$r = Rewards::post_info( $user_id, (int) $id );
+					return ! $r || $r['unlocked'];
+				}
+			)
+		);
+		return $open;
 	}
 
 	/** Wochenplan-Einträge eines Tages in fester Reihenfolge der Mahlzeiten. Leer = nichts geplant. */

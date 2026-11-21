@@ -18,11 +18,14 @@ Provision fällt an, wenn **in der App** digitale Inhalte gekauft werden oder di
 | **Punkte einlösen** im Shop | Punkte werden nicht gekauft, sondern verdient. Ein Link „Punkte im Shop einlösen“ kann aber als Kauf-Link gewertet werden, weil im Shop auch Mitgliedschaften liegen | für physische Produkte unkritisch | iOS: **aus** (`points_redemption = false`), Punkte werden in der App nur angezeigt. Android: an. Einlösen geschieht auf vibono.de |
 | **Mitgliedschaften** (digital) | Verkauf/Link aus der App nur mit In-App-Kauf oder über Apples Link-out-Programme, die je nach Region Gebühren kosten | Google Play Billing oder Programme für externe Links/alternative Abrechnung, ebenfalls mit Gebühren | **Aus** (`memberships = false`). Login für bereits gekaufte Mitgliedschaften ist erlaubt (Multiplattform-Zugriff) |
 | Empfehlungslink teilen | erlaubt | erlaubt | Teilen-Button mit Link auf vibono.de |
+| **Prämien: exklusive Inhalte, eBooks/PDFs** gegen Punkte | Punkte sind verdient, nicht gekauft; es fließt kein Geld. Freischalten in der App ist kein Kauf und braucht keinen In-App-Kauf | ebenso | In der App **an** (`rewards_app_*.content/download`). Punkte können nirgends gekauft werden |
+| **Prämie: Rabatt auf die Verlängerung** | Ein Gutschein für die Verlängerung einer Mitgliedschaft ist eine Aufforderung zu einem digitalen Kauf außerhalb der App (Lenkung) | ebenso | In der App **aus** (`rewards_app_*.renewal_discount = false`), App zeigt die Prämie nicht. Einlösbar nur auf vibono.de unter Mein Konto → Vibono-Punkte |
 
 ## Technische Absicherung im Plugin
 
-- `GET /config?platform=ios|android` liefert die Schalter `shop_links.physical_products`, `.points_redemption`, `.memberships`. Die App zeigt Links nur, wenn der Schalter an ist. So kann Vibono bei Rückfragen von Apple oder Google Links **ohne neues App-Update** abschalten.
-- Einstellbar im Backend unter **Vibono-Punkte → App-Schnittstelle → App-Store-Regeln**.
+- `GET /config?platform=ios|android` liefert die Schalter `shop_links.physical_products`, `.points_redemption`, `.memberships` und `features.reward_kinds` (welche Prämienarten die App zeigt). `GET /rewards?platform=…` liefert nur diese Arten, und `POST /rewards/{id}/redeem` lehnt andere mit `vibono_not_available_here` („Diese Prämie ist in der App nicht verfügbar.“, ohne Hinweis auf die Website) ab. Die App zeigt Links nur, wenn der Schalter an ist. So kann Vibono bei Rückfragen von Apple oder Google Links **ohne neues App-Update** abschalten.
+- Einstellbar im Backend unter **Vibono-Punkte → App-Schnittstelle → App-Store-Regeln** (Prämienarten je Plattform ebenda).
+- Seit 21.11.2026 ist „Punkte an der Kasse einlösen“ standardmäßig aus; dann ist auch `points_redemption` aus und die App zeigt keinen Euro-Wert.
 - `POST /auth/web-session` öffnet vibono.de eingeloggt im **externen Browser** (kein eingebetteter Kaufablauf in der App).
 
 ## Pflichten, die trotzdem gelten

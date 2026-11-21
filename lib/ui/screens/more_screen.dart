@@ -14,6 +14,7 @@ import 'notification_settings_screen.dart';
 import 'onboarding/onboarding_screen.dart';
 import 'points_screen.dart';
 import 'referral_screen.dart';
+import 'rewards_screen.dart';
 import 'tips_screen.dart';
 import 'weight_screen.dart';
 
@@ -62,6 +63,9 @@ class MoreScreen extends ConsumerWidget {
         ),
         const Divider(),
         tile(Icons.star_outline_rounded, 'Meine Punkte', () => push(context, const PointsScreen())),
+        if (ref.watch(remoteConfigProvider).value?.featureRewards ?? false)
+          tile(Icons.redeem_rounded, 'Prämien', () => push(context, const RewardsScreen()),
+              subtitle: 'Exklusive Rezepte, Tipps und eBooks'),
         if (ref.watch(remoteConfigProvider).value?.featureReferral ?? false)
           tile(Icons.group_add_outlined, 'Freunde einladen', () => push(context, const ReferralScreen()),
               subtitle: 'Punkte für jede Empfehlung'),

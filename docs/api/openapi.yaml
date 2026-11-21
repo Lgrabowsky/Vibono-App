@@ -28,6 +28,7 @@ tags:
 - name: Inhalte
 - name: Punkte
 - name: Lesen
+- name: Prämien
 - name: Empfehlungen
 - name: System
 - name: Energiedichte
@@ -563,7 +564,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ContentDetail'
         '403':
-          description: vibono_membership_required (data.required_plans)
+          description: |
+            vibono_membership_required (data.required_plans) oder vibono_reward_required: exklusiver Beitrag,
+            noch nicht freigeschaltet (data.reward_id, data.cost_points). Die App bietet dann das Einlösen an
+            (POST /rewards/{reward_id}/redeem).
           content:
             application/json:
               schema:
@@ -643,6 +647,154 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Campaign'
+  /rewards:
+    get:
+      tags:
+      - Prämien
+      summary: Punktestand, Prämien-Katalog und eigene Prämien
+      description: |
+        Liefert nur Prämienarten, die auf der Plattform eingelöst werden dürfen (features.reward_kinds aus
+        GET /config). Standard: exklusive Inhalte und eBooks/PDFs in der App, Rabatt auf die Verlängerung nur
+        auf der Website (platform=web). 403 vibono_feature_disabled, wenn das Modul „Prämien“ aus ist.
+      parameters:
+      - in: query
+        name: platform
+        schema:
+          type: string
+          enum:
+          - ios
+          - android
+          - web
+          default: ios
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewardCatalog'
+        '403':
+          $ref: '#/components/responses/Error'
+  /rewards/{id}/redeem:
+    post:
+      tags:
+      - Prämien
+      summary: Prämie gegen Punkte einlösen
+      description: |
+        Bucht die Punkte ab (Grund reward) und schaltet frei. Exklusive Inhalte und Dateien gelten danach
+        dauerhaft, der Rabatt erzeugt einen persönlichen Einmal-Gutschein (coupon). Höchstens 10 Versuche
+        pro Minute.
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                platform:
+                  type: string
+                  enum:
+                  - ios
+                  - android
+                  - web
+                  default: ios
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewardRedeemResult'
+        '403':
+          description: vibono_not_available_here (Prämienart auf dieser Plattform aus) oder vibono_feature_disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: vibono_disabled / vibono_reward_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: vibono_insufficient_points, vibono_already_unlocked oder vibono_limit_reached (data.reward_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: vibono_busy (gleichzeitige Einlösung) oder vibono_rate_limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /rewards/{id}/download:
+    get:
+      tags:
+      - Prämien
+      summary: Kurzlebiger Download-Link für ein freigeschaltetes eBook/PDF
+      description: Die App öffnet url im externen Browser. Der Link gilt 15 Minuten (einstellbar).
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    type: string
+                    format: date-time
+        '403':
+          description: vibono_reward_locked (noch nicht freigeschaltet)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /rewards/file:
+    get:
+      tags:
+      - Prämien
+      summary: Datei ausliefern (signierter Link aus /rewards/{id}/download)
+      security: []
+      parameters:
+      - in: query
+        name: t
+        required: true
+        schema:
+          type: string
+        description: Signiertes Token (HMAC), enthält Konto, Prämie und Ablaufzeit
+      responses:
+        '200':
+          description: Die Datei (z. B. application/pdf) als Download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: vibono_link_expired (Token falsch oder abgelaufen) oder vibono_reward_locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /reading/start:
     post:
       tags:
@@ -951,6 +1103,9 @@ components:
               type: boolean
             points_redemption:
               type: boolean
+              description: |
+                Punkte als Guthaben an der Kasse einlösen und Euro-Gegenwert anzeigen. Nur true, wenn
+                „Guthaben an der Kasse“ im Backend an ist (seit 21.11.2026 standardmäßig aus).
         shop_url:
           type: string
           format: uri
@@ -971,7 +1126,27 @@ components:
               description: Freunde werben (GET /referral, Empfehlungscode bei der Registrierung)
             shop_points:
               type: boolean
-              description: Punkte für Einkäufe im Shop sammeln und dort einlösen
+              description: Modul „Punkte im Shop“ an (Reiter „Vibono-Punkte“ in Mein Konto)
+            purchase_points:
+              type: boolean
+              description: Punkte für Einkäufe. Seit 21.11.2026 standardmäßig aus (abschaltbar, nicht entfernt)
+            coaching_points:
+              type: boolean
+              description: Punkte für erledigte Lektionen und abgeschlossene Kurse
+            rewards:
+              type: boolean
+              description: Prämien (GET /rewards) und exklusive Beiträge
+            reward_kinds:
+              type: array
+              description: |
+                Prämienarten, die die App auf dieser Plattform zeigt und einlöst. Standard iOS/Android:
+                content, download (Rabatt auf die Verlängerung nur auf der Website, siehe docs/APP-STORE.md).
+              items:
+                type: string
+                enum:
+                - content
+                - download
+                - renewal_discount
             web_reading:
               type: boolean
               description: Lesepunkte auch für Artikel, die auf der Website gelesen werden
@@ -1379,7 +1554,21 @@ components:
           type: boolean
         locked:
           type: boolean
-          description: true wenn der Nutzer keinen Zugriff hat
+          description: true wenn der Nutzer keinen Zugriff hat (Mitgliedschaft fehlt oder exklusiv und nicht freigeschaltet)
+        exclusive:
+          type: boolean
+          description: Beitrag ist eine Prämie (nur gegen Punkte freischaltbar)
+        reward:
+          type: object
+          nullable: true
+          description: Nur exklusive Beiträge
+          properties:
+            id:
+              type: integer
+            cost_points:
+              type: integer
+            unlocked:
+              type: boolean
         done:
           type: boolean
           nullable: true
@@ -1567,7 +1756,10 @@ components:
           description: balance × effective_cents_per_point
         earn_rules:
           type: object
-          description: Aktuelle Punkte je Aktion (inkl. Multiplikator laufender Aktionen)
+          description: |
+            Aktuelle Punkte je Aktion (inkl. Multiplikator laufender Aktionen). Schlüssel: app_open, article_read,
+            lesson_done, course_done, referral (nur mit Modul „Freunde werben“), purchase (nur wenn Punkte für
+            Einkäufe an sind). Abgeschaltete Aktionen (0 Punkte) fehlen.
           additionalProperties:
             type: integer
         campaigns:
@@ -1711,11 +1903,15 @@ components:
           enum:
           - app_open
           - article_read
+          - lesson_done
+          - course_done
           - referral
           - referral_friend
           - purchase
           - redeem
           - redeem_refund
+          - reward
+          - reward_refund
           - admin
           - migration
           - expire
@@ -1756,6 +1952,150 @@ components:
         streak:
           $ref: '#/components/schemas/Streak'
           description: Nur bei POST /points/app-open
+    RewardItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum:
+          - content
+          - download
+          - renewal_discount
+        title:
+          type: string
+        description:
+          type: string
+        cost_points:
+          type: integer
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+        redeemed_count:
+          type: integer
+          description: Wie oft diese Person die Prämie schon eingelöst hat
+        unlocked:
+          type: boolean
+          description: Inhalte und Dateien, schon freigeschaltet
+        can_redeem:
+          type: boolean
+        unavailable_reason:
+          type: string
+          nullable: true
+          enum:
+          - insufficient_points
+          - already_unlocked
+          - limit_reached
+          - not_available_here
+          - disabled
+        content:
+          type: object
+          nullable: true
+          description: Nur kind = content
+          properties:
+            post_id:
+              type: integer
+            type:
+              type: string
+              enum:
+              - lesson
+              - recipe
+              - tip
+            title:
+              type: string
+        file:
+          type: object
+          nullable: true
+          description: Nur kind = download
+          properties:
+            name:
+              type: string
+            size_bytes:
+              type: integer
+              nullable: true
+            mime:
+              type: string
+        discount:
+          type: object
+          nullable: true
+          description: Nur kind = renewal_discount
+          properties:
+            type:
+              type: string
+              enum:
+              - fixed
+              - percent
+            amount:
+              type: number
+            label:
+              type: string
+              example: 10 € Rabatt
+            valid_days:
+              type: integer
+    RewardUnlock:
+      type: object
+      properties:
+        id:
+          type: integer
+        reward_id:
+          type: integer
+        kind:
+          type: string
+          enum:
+          - content
+          - download
+          - renewal_discount
+        title:
+          type: string
+        points:
+          type: integer
+          description: Abgebuchte Punkte
+        created_at:
+          type: string
+          format: date-time
+        post_id:
+          type: integer
+          nullable: true
+          description: Nur kind = content
+        coupon:
+          type: object
+          nullable: true
+          description: Nur kind = renewal_discount. Persönlicher Einmal-Gutschein für den Shop
+          properties:
+            code:
+              type: string
+              example: VP-7KQ2-M9XD
+            expires_at:
+              type: string
+              format: date-time
+              nullable: true
+            used:
+              type: boolean
+            label:
+              type: string
+    RewardCatalog:
+      type: object
+      properties:
+        balance:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RewardItem'
+        unlocked:
+          type: array
+          items:
+            $ref: '#/components/schemas/RewardUnlock'
+    RewardRedeemResult:
+      type: object
+      properties:
+        unlock:
+          $ref: '#/components/schemas/RewardUnlock'
+        balance:
+          type: integer
+          description: Kontostand nach dem Einlösen
     ReadingSession:
       type: object
       properties:

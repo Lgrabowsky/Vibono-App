@@ -13,6 +13,7 @@ import '../data/models/content.dart';
 import '../data/models/json.dart';
 import '../data/models/points.dart';
 import '../data/models/profile.dart';
+import '../data/models/rewards.dart';
 import '../data/sync/sync_repository.dart';
 import '../domain/coaching_plan.dart';
 
@@ -238,6 +239,26 @@ class AppStreakState extends Notifier<AppStreak?> {
 final appStreakProvider = NotifierProvider<AppStreakState, AppStreak?>(AppStreakState.new);
 final pointsProvider = FutureProvider<PointsSummary>((ref) => ref.watch(apiProvider).points());
 final ledgerProvider = FutureProvider<List<LedgerEntry>>((ref) => ref.watch(apiProvider).ledger());
+/// Prämien-Katalog. `null`, solange das Modul „Prämien“ auf vibono.de aus ist.
+final rewardsProvider = FutureProvider<RewardCatalog?>((ref) async {
+  final config = await ref.watch(remoteConfigProvider.future);
+  if (!config.featureRewards) return null;
+  try {
+    return await ref.watch(apiProvider).rewards(platformName);
+  } on ApiException catch (e) {
+    if (e.isFeatureDisabled) return null;
+    rethrow;
+  }
+});
+
+/// Nach einer Gutschrift oder Einlösung: alles neu laden, was Punkte zeigt.
+void refreshPointsViews(WidgetRef ref, {int? balance}) {
+  if (balance != null) ref.read(pointsBalanceProvider.notifier).set(balance);
+  ref.invalidate(pointsProvider);
+  ref.invalidate(ledgerProvider);
+  ref.invalidate(rewardsProvider);
+}
+
 /// `null`, solange „Freunde werben“ auf vibono.de ausgeschaltet ist.
 final referralProvider = FutureProvider<ReferralInfo?>((ref) async {
   final config = await ref.watch(remoteConfigProvider.future);

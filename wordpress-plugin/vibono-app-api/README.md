@@ -5,7 +5,8 @@ Verbindet die App „Vibono“ mit vibono.de und stellt ein zentrales Punktesyst
 - **Login** mit dem bestehenden Vibono-Konto (Token für die App, Registrierung mit Empfehlungscode, Passwort vergessen, Konto löschen)
 - **Zwei-Wege-Synchronisation** von MyVibono-Daten: Lieblingsrezepte, erledigte Lektionen und Kurse, Gewicht, Sport, Wochenplan (ohne Uhrzeiten), Onboarding-Angaben und Wunschgewicht nach 3, 6 und 12 Monaten
 - **Tagesübersicht** für den Startbildschirm: Phase und Tag im Coaching, Fortschritt, nächster Schritt, Essen/Bewegung/Wissen/Sonstiges, 3 Rezepte, Vibono-Tipp, Tipp des Tages
-- **Vibono-Punkte**: tägliches Öffnen mit Serie (je mehr Tage in Folge, desto mehr Punkte; Stufen einstellbar), nachweislich gelesene Artikel (App und Website), Kundenwerbung, Einkäufe; Einlösen im WooCommerce-Shop; Umrechnungskurs und Aktionen im Backend
+- **Vibono-Punkte**: Punkte für Coaching-Fortschritt (Lektionen und Kurse), Kundenwerbung, tägliches Öffnen mit Serie und komplett gelesene Artikel (App und Website); Aktionen im Backend. Punkte für Einkäufe und Guthaben an der Kasse sind abschaltbar und standardmäßig aus
+- **Prämien**: Punkte gegen exklusive Inhalte (Rezepte, Tipps), exklusive eBooks/PDFs und Rabatt auf die Verlängerung einlösen, in der App und unter Mein Konto
 - **Energiedichte-Rechner**: Lebensmittelsuche, Rezept-Scan und Foto-Schätzung über die Claude API (Schlüssel nur auf dem Server)
 
 API-Vertrag: [`docs/openapi.yaml`](docs/openapi.yaml) (Basis `https://www.vibono.de/wp-json/vibono/v1`).
@@ -26,9 +27,9 @@ Voraussetzungen: WordPress ≥ 6.2, PHP ≥ 8.1, WooCommerce (für Shop-Punkte),
    define( 'VIBONO_ANTHROPIC_API_KEY', '…' ); // optional, für den Energiedichte-Rechner
    ```
 4. Unbedingt zuerst auf einer **Staging-Kopie** testen.
-5. Backend → **Vibono-Punkte → Module & Anbindung**: Systemprüfung ansehen. Nach der Aktivierung ist nur die App-Schnittstelle an; Shop, Freunde werben, Lesepunkte auf der Website und das Schreiben in MyVibono-Felder sind aus und werden schrittweise eingeschaltet (siehe [ANBINDUNG.md](docs/ANBINDUNG.md)).
+5. Backend → **Vibono-Punkte → Module & Anbindung**: Systemprüfung ansehen. Nach der Aktivierung ist nur die App-Schnittstelle an; Shop, Freunde werben, Prämien, Lesepunkte auf der Website und das Schreiben in MyVibono-Felder sind aus und werden schrittweise eingeschaltet (siehe [ANBINDUNG.md](docs/ANBINDUNG.md)).
 6. Backend → **Vibono-Punkte → App-Schnittstelle**: Inhaltstypen, Kurs-Zuordnung zu den Phasen und MyVibono-Speicherorte prüfen (siehe „Annahmen“).
-7. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte und Stufen der Serie fürs tägliche Öffnen festlegen. Start: 1 Punkt = 1 Cent.
+7. Backend → **Vibono-Punkte → Kurs & Regeln**: Punktwerte und Stufen der Serie fürs tägliche Öffnen festlegen. Unter **Prämien** die einlösbaren Prämien anlegen.
 8. Falls der Server den `Authorization`-Header nicht an PHP durchreicht (manche Apache-Setups), in `.htaccess` ergänzen:
    `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`
 

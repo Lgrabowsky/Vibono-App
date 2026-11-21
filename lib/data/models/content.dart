@@ -26,6 +26,9 @@ class ContentItem {
     this.pointsForReading = 0,
     this.requiresMembership = false,
     this.locked = false,
+    this.exclusive = false,
+    this.rewardId,
+    this.rewardCost,
     this.done,
     this.contentHtml,
     this.wordCount,
@@ -49,6 +52,11 @@ class ContentItem {
   final int pointsForReading;
   final bool requiresMembership;
   final bool locked;
+
+  /// Exklusiver Beitrag: wird mit Punkten freigeschaltet (Prämie [rewardId]).
+  final bool exclusive;
+  final int? rewardId;
+  final int? rewardCost;
   final bool? done;
   final String? contentHtml;
   final int? wordCount;
@@ -74,6 +82,9 @@ class ContentItem {
         pointsForReading: asInt(j['points_for_reading']) ?? 0,
         requiresMembership: asBool(j['requires_membership']),
         locked: asBool(j['locked']),
+        exclusive: asBool(j['exclusive']),
+        rewardId: asInt(asMap(j['reward'])?['id']),
+        rewardCost: asInt(asMap(j['reward'])?['cost_points']),
         done: j['done'] == null ? null : asBool(j['done']),
         contentHtml: asString(j['content_html']),
         wordCount: asInt(j['word_count']),
@@ -104,6 +115,8 @@ class ContentItem {
         'points_for_reading': pointsForReading,
         'requires_membership': requiresMembership,
         'locked': locked,
+        'exclusive': exclusive,
+        'reward': rewardId == null ? null : {'id': rewardId, 'cost_points': rewardCost, 'unlocked': !locked},
         'done': done,
         if (contentHtml != null) 'content_html': contentHtml,
         if (wordCount != null) 'word_count': wordCount,

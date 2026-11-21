@@ -11,20 +11,25 @@ import '../navigation.dart';
 import '../widgets/common.dart';
 import '../widgets/streak.dart';
 import 'referral_screen.dart';
+import 'rewards_screen.dart';
 
-/// Punkte: Stand, Aktionen, wie man sammelt, Verlauf.
+/// Punkte: Stand, Prämien, Aktionen, wie man sammelt, Verlauf.
 ///
-/// Keine Preise und keine Kauf-Buttons. Der Gegenwert und die Einlösung im
-/// Vibono-Shop erscheinen nur, wenn `GET /config` das für die Plattform
-/// freigibt (`shop_links.points_redemption`). Freunde werben und Shop-Punkte
-/// erscheinen erst, wenn das Modul auf vibono.de eingeschaltet ist
-/// (`features.referral`, `features.shop_points`).
+/// Punkte gibt es für Coaching-Fortschritt, Neukunden werben, die Serie beim
+/// Öffnen und komplett gelesene Artikel. Eingelöst werden sie gegen Prämien
+/// (exklusive Inhalte, eBooks/PDFs, Rabatt auf Verlängerungen), siehe
+/// [RewardsScreen]. Keine Preise und keine Kauf-Buttons. Guthaben im Shop
+/// und Einkaufspunkte erscheinen nur, wenn `GET /config` sie meldet
+/// (`shop_links.points_redemption`, `features.purchase_points`; seit
+/// 21.11.2026 standardmäßig aus).
 class PointsScreen extends ConsumerWidget {
   const PointsScreen({super.key});
 
   static const reasonLabels = {
     'app_open': 'Täglich die App öffnen',
-    'article_read': 'Einen Beitrag lesen',
+    'article_read': 'Einen Artikel komplett lesen',
+    'lesson_done': 'Eine Lektion erledigen',
+    'course_done': 'Einen Kurs abschließen',
     'referral': 'Freundin oder Freund werben',
     'referral_friend': 'Willkommensbonus',
     'purchase': 'Einkauf im Vibono-Shop',
@@ -37,7 +42,8 @@ class PointsScreen extends ConsumerWidget {
     final ledger = ref.watch(ledgerProvider);
     final config = ref.watch(remoteConfigProvider).value;
     final showValue = config?.linkPointsRedemption ?? false;
-    final showPurchase = (config?.featureShopPoints ?? false) && (config?.linkPhysicalProducts ?? false);
+    final showPurchase = (config?.featurePurchasePoints ?? false) && (config?.linkPhysicalProducts ?? false);
+    final showRewards = config?.featureRewards ?? false;
     final showReferral = config?.featureReferral ?? false;
     bool visibleReason(String r) => r.startsWith('purchase')
         ? showPurchase
@@ -62,6 +68,14 @@ class PointsScreen extends ConsumerWidget {
             AsyncError() => ErrorRetry(message: 'Punkte konnten nicht geladen werden.', onRetry: () => ref.invalidate(pointsProvider)),
             _ => const SizedBox(height: 140, child: LoadingView()),
           },
+          if (showRewards) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: () => push<void>(context, const RewardsScreen()),
+              icon: const Icon(Icons.redeem_rounded, size: 18),
+              label: const Text('PUNKTE EINLÖSEN'),
+            ),
+          ],
           if (showValue) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -91,9 +105,13 @@ class PointsScreen extends ConsumerWidget {
                   dense: true,
                   leading: Icon(_icon(e.key), color: VibonoColors.green),
                   title: Text(reasonLabels[e.key]!, style: VibonoText.body),
-                  subtitle: e.key == 'app_open' && summary.value!.streak.enabled
-                      ? const Text('Mehr Punkte, je mehr Tage in Folge', style: VibonoText.small)
-                      : null,
+                  subtitle: switch (e.key) {
+                    'app_open' when summary.value!.streak.enabled =>
+                      const Text('Mehr Punkte, je mehr Tage in Folge', style: VibonoText.small),
+                    'lesson_done' => const Text('Häkchen bei „Lektion erledigt“, einmal je Lektion', style: VibonoText.small),
+                    'course_done' => const Text('Bonus, wenn alle Lektionen eines Kurses erledigt sind', style: VibonoText.small),
+                    _ => null,
+                  },
                   trailing: Text('+${formatPoints(e.value)}', style: VibonoText.cardTitle),
                   onTap: e.key == 'referral' && showReferral ? () => push(context, const ReferralScreen()) : null,
                 ),
@@ -137,6 +155,8 @@ class PointsScreen extends ConsumerWidget {
   static IconData _icon(String k) => switch (k) {
         'app_open' => Icons.wb_sunny_outlined,
         'article_read' => Icons.menu_book_rounded,
+        'lesson_done' => Icons.check_circle_outline_rounded,
+        'course_done' => Icons.emoji_events_outlined,
         'referral' => Icons.group_add_outlined,
         'purchase' || 'purchase_per_euro' => Icons.shopping_bag_outlined,
         _ => Icons.star_outline_rounded,

@@ -285,7 +285,7 @@ class Rewards {
 	private static function error( string $code, array $reward ): \WP_Error {
 		$map = array(
 			'disabled'            => array( 404, 'Diese Prämie gibt es nicht mehr.' ),
-			'not_available_here'  => array( 403, 'Diese Prämie kannst du auf vibono.de unter „Mein Konto → Vibono-Punkte“ einlösen.' ),
+			'not_available_here'  => array( 403, 'Diese Prämie ist in der App nicht verfügbar.' ),
 			'already_unlocked'    => array( 409, 'Du hast diese Prämie schon freigeschaltet.' ),
 			'limit_reached'       => array( 409, 'Du hast diese Prämie schon so oft eingelöst, wie es geht.' ),
 			'insufficient_points' => array( 409, sprintf( 'Dafür brauchst du %s Punkte.', number_format_i18n( $reward['cost_points'] ) ) ),

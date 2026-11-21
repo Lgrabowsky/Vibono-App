@@ -21,6 +21,7 @@
 		['punkte', '⭐', 'Punktekonto'],
 		['lesen', '📖', 'Lesen & Lesepunkte'],
 		['werben', '🤝', 'Freunde werben'],
+		['praemien', '🎁', 'Prämien einlösen'],
 		['shop', '🛒', 'Shop & Bestellungen'],
 		['aktionen', '🎉', 'Aktionen'],
 		['-', '', 'App-Funktionen'],
@@ -44,7 +45,7 @@
 	const heute = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 	const datum = (iso) => iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
 	const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
-	const GRUENDE = { app_open: 'App geöffnet', article_read: 'Artikel gelesen', referral: 'Kund*in geworben', referral_friend: 'Willkommensbonus', purchase: 'Einkauf', redeem: 'Eingelöst', redeem_refund: 'Einlösung zurück', admin: 'Manuelle Buchung', migration: 'Übernahme Refer-a-friend', expire: 'Verfallen' };
+	const GRUENDE = { app_open: 'App geöffnet', article_read: 'Artikel gelesen', lesson_done: 'Lektion erledigt', course_done: 'Kurs abgeschlossen', reward: 'Prämie eingelöst', reward_refund: 'Prämie zurückgebucht', referral: 'Kund*in geworben', referral_friend: 'Willkommensbonus', purchase: 'Einkauf', redeem: 'Eingelöst', redeem_refund: 'Einlösung zurück', admin: 'Manuelle Buchung', migration: 'Übernahme Refer-a-friend', expire: 'Verfallen' };
 	const STATUS = { confirmed: ['bestätigt', 'gruen'], pending: ['vorgemerkt', 'gelb'], void: ['storniert', 'rot'] };
 	const SERIE_EREIGNIS = {
 		first: 'Erster Tag einer neuen Serie.',
@@ -245,6 +246,9 @@
 						${modul('module_shop', 'Punkte im Shop')}
 						${modul('module_referral', 'Freunde werben')}
 						${modul('module_web_reading', 'Lesepunkte auf der Website')}
+						${modul('module_rewards', 'Prämien')}
+						${modul('earn_purchases', 'Punkte für Einkäufe (früher)')}
+						${modul('redeem_at_checkout', 'Punkte an der Kasse (früher)')}
 						${modul('points_enabled', 'Punktesystem')}
 					</tbody></table>
 					<div class="knopfreihe"><a class="knopf zweit klein" href="${h(s.links.module)}" target="_blank">Module ein-/ausschalten</a><a class="knopf zweit klein" href="${h(s.links.regeln)}" target="_blank">Punktwerte ändern</a></div>
@@ -256,9 +260,11 @@
 						<tr><td>App täglich öffnen</td><td>${h(w.earn_app_open)} Punkte${w.streak_enabled ? '<br><small>Serie: ' + (w.streak_levels || []).slice(1).map((l) => 'ab Tag ' + h(l.from_day) + ': ' + h(l.points)).join(' · ') + ' · ' + h(w.streak_grace_per_month) + ' Schutztage/Monat, danach ' + h(BRUCH[w.streak_on_break] || w.streak_on_break) + '</small>' : ' <small>(Serie aus)</small>'}</td></tr>
 						<tr><td>Artikel gelesen</td><td>${h(w.earn_article_read)} Punkte (max. ${h(w.article_read_daily_cap)} pro Tag)</td></tr>
 						<tr><td>Kund*in geworben</td><td>${h(w.earn_referral)} Punkte, Geworbene ${h(w.earn_referral_friend)} (ab ${euro(w.referral_min_order_cents)})</td></tr>
-						<tr><td>Einkauf</td><td>${h(w.earn_purchase_per_euro)} Punkte je Euro</td></tr>
-						<tr><td>Widerrufsfrist</td><td>${h(w.pending_days)} Tage</td></tr>
-						<tr><td>Einlösen</td><td>ab ${h(w.min_redeem_points)} Punkten, max. ${h(w.max_redeem_percent)} % des Warenkorbs</td></tr>
+						<tr><td>Lektion erledigt</td><td>${h(w.earn_lesson_done)} Punkte (max. ${h(w.lesson_done_daily_cap)} pro Tag)</td></tr>
+						<tr><td>Kurs abgeschlossen</td><td>${h(w.earn_course_done)} Punkte</td></tr>
+						<tr><td>Widerrufsfrist</td><td>${h(w.pending_days)} Tage (Empfehlungen)</td></tr>
+						<tr><td>Einlösen</td><td>gegen Prämien (<a href="${h(s.links.praemien)}" target="_blank">im Backend pflegen</a>)</td></tr>
+						<tr><td>Einkauf / Kasse</td><td>${m.earn_purchases ? h(w.earn_purchase_per_euro) + ' Punkte je Euro' : 'keine Punkte'} · ${m.redeem_at_checkout ? 'Einlösen an der Kasse an' : 'kein Guthaben an der Kasse'}</td></tr>
 					</tbody></table>
 					<p class="leise">Vorschläge, noch nicht von Vibono bestätigt.</p>
 				</div>
@@ -522,6 +528,60 @@
 		};
 	};
 
+	// ------------------------------------------------------------ Prämien
+	const PRAEMIE_ART = { content: 'Exklusiver Inhalt', download: 'eBook/PDF', renewal_discount: 'Rabatt Verlängerung' };
+	const PRAEMIE_GRUND = { insufficient_points: 'zu wenig Punkte', already_unlocked: 'schon freigeschaltet', limit_reached: 'schon eingelöst', not_available_here: 'hier nicht einlösbar', disabled: 'deaktiviert' };
+	SEITEN.praemien = async (el) => {
+		const pf = S.praemienPlattform || 'android';
+		const r = await api('GET', '/rewards?platform=' + pf);
+		const d = r.ok ? r.data : { balance: 0, items: [], unlocked: [] };
+		const knopf = (it) => {
+			let out = it.can_redeem ? '<button class="klein" data-einl="' + it.id + '">Einlösen</button>'
+				: '<span class="marke' + (it.unlocked ? ' gruen' : '') + '">' + h(PRAEMIE_GRUND[it.unavailable_reason] || it.unavailable_reason || '') + '</span>';
+			if (it.kind === 'download' && it.unlocked) out += ' <button class="klein zweit" data-laden="' + it.id + '">Laden</button>';
+			if (it.kind === 'content' && it.content) out += ' <button class="klein zweit" data-lesen="' + it.content.post_id + '">Abrufen</button>';
+			return out;
+		};
+		const zeile = (it) => '<tr><td><strong>' + h(it.title) + '</strong><br><small>' + h(it.description) + '</small></td><td>' + h(PRAEMIE_ART[it.kind] || it.kind) +
+			(it.discount ? '<br><small>' + h(it.discount.label) + ', ' + h(it.discount.valid_days) + ' Tage gültig</small>' : '') + '</td><td>' + zahl(it.cost_points) + '</td><td>' + knopf(it) + '</td></tr>';
+		const meine = (u) => '<tr><td>' + h(u.title) + '</td><td>' + zahl(u.points) + ' Punkte</td><td>' + datum(u.created_at) + '</td><td>' +
+			(u.coupon ? '<code>' + h(u.coupon.code) + '</code> ' + h(u.coupon.label) + (u.coupon.used ? ' <span class="marke">benutzt</span>' : '') + '<br><small>gültig bis ' + datum(u.coupon.expires_at) + '</small>' : '') + '</td></tr>';
+		const plattformen = { android: 'App (Android)', ios: 'App (iOS)', web: 'Website (Mein Konto)' };
+		el.innerHTML = `
+			<h1>Prämien einlösen</h1>
+			<p>Punkte gegen exklusive Rezepte und Tipps, eBooks/PDFs und Rabatt auf die Verlängerung. In der App (iOS/Android) erscheint der Verlängerungsrabatt standardmäßig nicht, nur auf der Website, siehe docs/APP-STORE.md.</p>
+			<div class="karte">
+				<div class="knopfreihe">
+					<label><span>Einlösen als</span> <select id="pr-pf">${Object.keys(plattformen).map((x) => '<option value="' + x + '"' + (x === pf ? ' selected' : '') + '>' + plattformen[x] + '</option>').join('')}</select></label>
+					<span>${personName()} hat <strong>${zahl(d.balance)} Punkte</strong></span>
+				</div>
+				${r.ok ? '' : ergebnis(r)}
+				<table><thead><tr><th>Prämie</th><th>Art</th><th>Punkte</th><th></th></tr></thead><tbody>
+				${d.items.map(zeile).join('') || '<tr><td colspan="4" class="leise">Keine Prämien für diese Plattform.</td></tr>'}
+				</tbody></table>
+				<div id="pr-erg"></div>
+			</div>
+			<div class="karte"><h2>Meine Prämien</h2>
+				<table><tbody>${d.unlocked.map(meine).join('') || '<tr><td class="leise">Noch nichts eingelöst.</td></tr>'}</tbody></table>
+				<p class="leise">Den Gutschein im Test-Shop beim Produkt „Vibono-Coaching: Verlängerung 12 Monate“ eingeben (Bereich „Shop & Bestellungen“).</p>
+			</div>`;
+		$('#pr-pf').onchange = (e) => { S.praemienPlattform = e.target.value; zeichnen(); };
+		$$('[data-einl]', el).forEach((b) => b.onclick = async () => {
+			const x = await api('POST', '/rewards/' + b.dataset.einl + '/redeem', { platform: pf });
+			if (x.ok) { await personAktualisieren(); await SEITEN.praemien(el); }
+			zeige('#pr-erg', ergebnis(x, x.ok ? 'Eingelöst. Neuer Stand: ' + zahl(x.data.balance) + ' Punkte.' + (x.data.unlock.coupon ? ' Gutschein: ' + x.data.unlock.coupon.code : '') : null));
+		});
+		$$('[data-laden]', el).forEach((b) => b.onclick = async () => {
+			const x = await api('GET', '/rewards/' + b.dataset.laden + '/download');
+			zeige('#pr-erg', ergebnis(x, x.ok ? 'Download-Link erstellt, gültig bis ' + datum(x.data.expires_at) + '.' : null) +
+				(x.ok ? '<p><a class="knopf klein" href="' + h(x.data.url) + '" target="_blank">PDF öffnen</a></p>' : ''));
+		});
+		$$('[data-lesen]', el).forEach((b) => b.onclick = async () => {
+			const x = await api('GET', '/content/item/' + b.dataset.lesen);
+			zeige('#pr-erg', ergebnis(x, x.ok ? 'Beitrag abrufbar: ' + x.data.title : null));
+		});
+	};
+
 	// ------------------------------------------------------------ Shop
 	SEITEN.shop = async (el) => {
 		const [prod, best] = await Promise.all([helfer('GET', '/produkte'), helfer('GET', '/bestellungen?user_id=' + (S.person ? S.person.id : 0))]);
@@ -530,7 +590,7 @@
 			<h1>Shop & Bestellungen</h1>
 			<div class="raster">
 				<div class="karte"><h2>Im echten Test-Shop einkaufen</h2>
-					<p>Öffnet den Shop im Browser, angemeldet als ${personName()} – so wie der Knopf in der App (<code>POST /auth/web-session</code>). Im Warenkorb erscheint das Feld zum Punkte-Einlösen.</p>
+					<p>Öffnet den Shop im Browser, angemeldet als ${personName()} – so wie der Knopf in der App (<code>POST /auth/web-session</code>). Unter „Mein Konto → Vibono-Punkte“ lassen sich Prämien einlösen, auch der Gutschein für die Verlängerung. Punkte für Einkäufe und Guthaben an der Kasse sind seit 21.11.2026 aus.</p>
 					<div class="knopfreihe"><button id="shop">🛒 Shop als ${personName()} öffnen</button><button class="zweit" id="warenkorb">Warenkorb</button><button class="zweit" id="konto">Mein Konto → Vibono-Punkte</button></div>
 					<p class="leise">Bist du in diesem Browser gerade als admin oder jemand anderes angemeldet, bleibt das so (Schutzregel des Plugins). Dann vorher <a href="${S.status ? h(S.status.links.abmelden) : '/wp-login.php?action=logout'}" target="_blank">abmelden</a> oder ein privates Fenster nutzen und dort <a href="/mein-konto/" target="_blank">anmelden</a>.</p>
 					<div id="shop-erg"></div>

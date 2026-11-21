@@ -5,6 +5,7 @@ import '../models/energy.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
+import '../models/rewards.dart';
 import '../models/sync_item.dart';
 
 class SyncPull {
@@ -54,6 +55,12 @@ abstract interface class VibonoApi {
   Future<ReadingProgress> readingHeartbeat(String sessionId, int activeSeconds, double scrollDepth);
   Future<AwardResult> completeReading(String sessionId, {int? quizAnswer});
   Future<ReferralInfo> referral();
+
+  /// Prämien: Katalog, Einlösen, Download-Link für freigeschaltete eBooks/PDFs.
+  /// [platform] steuert, welche Prämienarten die App einlösen darf.
+  Future<RewardCatalog> rewards(String platform);
+  Future<RewardRedeemResult> redeemReward(int rewardId, String platform);
+  Future<Uri> rewardDownload(int rewardId);
 
   /// Einmal-Link für eingeloggten Browser auf vibono.de, nur wenn erlaubt.
   Future<Uri> webSession(String redirectPath);

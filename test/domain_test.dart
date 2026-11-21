@@ -214,6 +214,21 @@ void main() {
       expect(day.every((m) => m.recipe != null && m.portions == 3 && !m.planned), isTrue);
     });
 
+    test('gesperrte Rezepte (exklusiv gegen Punkte) werden nie automatisch vorgeschlagen', () {
+      final locked = [
+        for (final r in recipes)
+          ContentItem(id: r.id + 100, type: ContentType.recipe, title: 'Exklusiv', tags: r.tags, locked: true, exclusive: true),
+      ];
+      final day = WeekPlan.day(
+        date: date,
+        recipes: [...locked, ...recipes],
+        profile: const Profile(),
+        phase: PhaseKey.phase3,
+        stored: (_) => null,
+      );
+      expect(day.every((m) => m.recipe != null && !m.recipe!.locked), isTrue);
+    });
+
     test('gespeicherte Planung gewinnt, ohne recipe_id bleibt der Platz frei', () {
       final day = WeekPlan.day(
         date: date,

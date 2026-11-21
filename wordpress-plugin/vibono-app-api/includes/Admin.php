@@ -389,7 +389,7 @@ class Admin {
 			}
 		}
 		$labels = self::reason_labels();
-		echo '<h2>Aktionen</h2><p>Beispiele: „Doppelte Punkte fürs Werben, 2 Wochen“ = Art <em>Punkte verdienen</em>, Grund <em>Kund*in geworben</em>, Multiplikator 2. „Punkte eine Woche doppelt so viel wert“ = Art <em>Einlösewert</em>, Multiplikator 2. Überschneiden sich Aktionen, gilt die stärkste (kein Stapeln).</p>';
+		echo '<h2>Aktionen</h2><p>Beispiele: „Doppelte Punkte fürs Werben, 2 Wochen“ = Art <em>Punkte verdienen</em>, Grund <em>Kund*in geworben</em>, Multiplikator 2. „Doppelte Punkte für Lektionen“ = Grund <em>Lektion erledigt</em>, Multiplikator 2. Die Art <em>Einlösewert</em> wirkt nur auf Guthaben an der Kasse (derzeit aus). Überschneiden sich Aktionen, gilt die stärkste (kein Stapeln).</p>';
 		echo '<table class="widefat striped"><thead><tr><th>Name</th><th>Art</th><th>Gilt für</th><th>×</th><th>Zeitraum</th><th>Status</th><th></th></tr></thead><tbody>';
 		$now = time();
 		foreach ( Campaigns::all_for_math() as $c ) {
@@ -417,7 +417,7 @@ class Admin {
 		echo '<table class="form-table">';
 		printf( '<tr><th>Name</th><td><input type="text" class="regular-text" name="name" required value="%s"></td></tr>', esc_attr( $f['name'] ) );
 		printf( '<tr><th>Beschreibung (sichtbar in App und Shop)</th><td><textarea class="large-text" rows="2" name="description">%s</textarea></td></tr>', esc_textarea( $f['description'] ) );
-		printf( '<tr><th>Art</th><td><label><input type="radio" name="kind" value="earn" %s> Punkte verdienen (Multiplikator auf neue Punkte)</label><br><label><input type="radio" name="kind" value="redeem" %s> Einlösewert (Punkte im Shop mehr wert)</label></td></tr>', checked( $f['kind'], 'earn', false ), checked( $f['kind'], 'redeem', false ) );
+		printf( '<tr><th>Art</th><td><label><input type="radio" name="kind" value="earn" %s> Punkte verdienen (Multiplikator auf neue Punkte)</label><br><label><input type="radio" name="kind" value="redeem" %s> Einlösewert (Guthaben an der Kasse mehr wert, nur wenn eingeschaltet)</label></td></tr>', checked( $f['kind'], 'earn', false ), checked( $f['kind'], 'redeem', false ) );
 		echo '<tr><th>Gilt für (nur „verdienen“)</th><td>';
 		foreach ( PointsMath::EARN_REASONS as $r ) {
 			printf( '<label style="margin-right:16px"><input type="checkbox" name="reasons[]" value="%s" %s> %s</label>', esc_attr( $r ), checked( in_array( $r, $f['reasons'], true ), true, false ), esc_html( $labels[ $r ] ?? $r ) );

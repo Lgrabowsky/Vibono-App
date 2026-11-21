@@ -15,6 +15,7 @@ import '../models/energy.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
+import '../models/rewards.dart';
 import '../models/sync_item.dart';
 import 'api_exception.dart';
 import 'mock_data.dart';
@@ -81,7 +82,8 @@ class MockVibonoApi implements VibonoApi {
     final now = DateTime.now().toUtc();
     String ago(int d) => now.subtract(Duration(days: d)).toIso8601String();
     return [
-      {'id': 3, 'points': 120, 'reason': 'purchase', 'status': 'confirmed', 'label': 'Einkauf im Vibono-Shop', 'created_at': ago(3)},
+      {'id': 4, 'points': 50, 'reason': 'course_done', 'status': 'confirmed', 'label': 'Kurs abgeschlossen: Vorbereitung', 'created_at': ago(2)},
+      {'id': 3, 'points': 70, 'reason': 'lesson_done', 'status': 'confirmed', 'label': 'Lektionen erledigt (7 × 10)', 'created_at': ago(3)},
       {'id': 2, 'points': 100, 'reason': 'migration', 'status': 'confirmed', 'label': 'Übernommen aus „Freunde werben“', 'created_at': ago(20)},
       {'id': 1, 'points': 20, 'reason': 'article_read', 'status': 'confirmed', 'label': 'Artikel gelesen: Mit 3 Phasen zum Erfolg', 'created_at': ago(21)},
     ];
@@ -139,9 +141,12 @@ class MockVibonoApi implements VibonoApi {
     return RemoteConfig(
       featureReferral: true,
       featureShopPoints: true,
+      featureCoachingPoints: true,
+      featureRewards: true,
+      // Wie die Standardeinstellung im Plugin: Verlängerungsrabatt nur auf vibono.de.
+      rewardKinds: web ? const ['content', 'download', 'renewal_discount'] : const ['content', 'download'],
       linkPhysicalProducts: true,
       linkMemberships: web,
-      linkPointsRedemption: web,
       shopUrl: 'https://www.vibono.de/shop/',
       centsPerPoint: 1,
     );
@@ -228,9 +233,17 @@ class MockVibonoApi implements VibonoApi {
     await _wait();
     final s = _server;
     final stale = <SyncItem>[];
+    final rewardedLessons = {...((_store.readJson('mock.lesson_points') as List?) ?? const []).map((e) => asInt(e) ?? 0)};
     for (final c in changes) {
       final id = '${c['collection']}|${c['key']}';
       final existing = s[id] == null ? null : SyncItem.fromJson(s[id]!);
+      // Coaching-Fortschritt: 10 Punkte je neu erledigter Lektion, einmal je Lektion (wie das Plugin).
+      final lessonId = c['collection'] == 'lessons_done' && c['op'] != 'delete' ? int.tryParse('${c['key']}') : null;
+      if (lessonId != null && rewardedLessons.add(lessonId)) {
+        await _store.writeJson('mock.lesson_points', rewardedLessons.toList());
+        final title = [for (final co in await courses()) ...co.lessons].where((l) => l.id == lessonId).firstOrNull?.title;
+        await _award(10, 'lesson_done', 'Lektion erledigt${title == null ? '' : ': $title'}');
+      }
       final at = DateTime.parse(c['updated_at'] as String);
       if (existing != null && existing.updatedAt.isAfter(at)) {
         stale.add(existing);
@@ -251,20 +264,22 @@ class MockVibonoApi implements VibonoApi {
   // ---------- Inhalte ----------
 
   List<ContentItem> get _recipes => [
-        for (final r in mockRecipes)
+        for (final r in [...mockRecipes, mockExclusiveRecipe])
           ContentItem.fromJson({
             ...r,
             'type': 'recipe',
             'excerpt': 'Energiedichte ${(r['energy_density'] as num).toString().replaceAll('.', ',')} kcal/g',
             'url': 'https://www.vibono.de/rezepte/',
             'content_html': mockRecipeHtml(r),
+            ..._exclusiveFields(r['id'] as int),
           }),
       ];
 
   List<ContentItem> get _tips => [
-        for (final t in mockTips)
+        for (final t in [...mockTips, mockExclusiveTip])
           ContentItem.fromJson({
             ...t,
+            ..._exclusiveFields(t['id'] as int),
             'type': 'tip',
             'excerpt': 'Ein Vibono-Tipp',
             'points_for_reading': 10,
@@ -333,10 +348,14 @@ class MockVibonoApi implements VibonoApi {
   Future<ContentItem> contentItem(int id) async {
     await _wait();
     final r = _recipes.where((r) => r.id == id).firstOrNull;
-    if (r != null) return r;
     final all = [..._tips, for (final c in await courses()) ...c.lessons];
-    final item = all.where((i) => i.id == id).firstOrNull;
+    final item = r ?? all.where((i) => i.id == id).firstOrNull;
     if (item == null) throw const ApiException(404, 'rest_post_invalid_id', 'Beitrag nicht gefunden.');
+    if (item.exclusive && item.locked) {
+      throw ApiException(403, 'vibono_reward_required', 'Exklusiv: Schalte diesen Beitrag mit ${item.rewardCost} Punkten frei.',
+          {'reward_id': item.rewardId, 'cost_points': item.rewardCost});
+    }
+    if (r != null) return r;
     final html = mockArticleHtml(item.title);
     return ContentItem.fromJson({
       ...item.toJson(),
@@ -394,7 +413,7 @@ class MockVibonoApi implements VibonoApi {
       task(-3, 'Gewicht eintragen', 'Morgens vor dem Frühstück', 'gewicht'),
     ];
 
-    final recipesAll = _recipes;
+    final recipesAll = _recipes.where((r) => !r.locked).toList();
     final plan = _server;
     final picked = RecipePicker.forDate(date, recipesAll, profile, phase.key);
     final recipes = <ContentItem>[];
@@ -474,7 +493,7 @@ class MockVibonoApi implements VibonoApi {
       'cents_per_point': 1,
       'effective_cents_per_point': 1,
       'value_cents': _balance,
-      'earn_rules': {'app_open': 5, 'article_read': 10, 'referral': 1000, 'referral_friend': 200, 'purchase_per_euro': 1},
+      'earn_rules': {'app_open': 5, 'article_read': 10, 'lesson_done': 10, 'course_done': 50, 'referral': 500, 'referral_friend': 200},
       'campaigns': _campaigns,
       'streak': _streakView,
     });
@@ -618,10 +637,89 @@ class MockVibonoApi implements VibonoApi {
       shareText: 'Ich nehme mit Vibono ab und werde dabei satt. Mit meinem Link bekommst du einen Willkommensbonus:',
       invited: 3,
       converted: 1,
-      pointsEarned: 1000,
-      pointsPerReferral: 2000,
+      pointsEarned: 500,
+      pointsPerReferral: 500,
       friendBonusPoints: 200,
     );
+  }
+
+  // ---------- Prämien ----------
+
+  List<Json> get _rewardDefs => [
+        {'id': 1, 'kind': 'content', 'title': 'Exklusives Rezept: Zucchini-Lasagne', 'description': 'Lasagne ohne Nudelplatten. Einmal freischalten, dauerhaft lesbar.', 'cost_points': 300, 'image_url': mockExclusiveRecipe['thumbnail_url'], 'content': {'post_id': mockExclusiveRecipe['id'], 'type': 'recipe', 'title': mockExclusiveRecipe['title']}},
+        {'id': 2, 'kind': 'content', 'title': 'Exklusiver Tipp: 7 Tricks gegen Heißhunger', 'description': 'Was abends wirklich gegen Heißhunger hilft.', 'cost_points': 200, 'image_url': mockExclusiveTip['thumbnail_url'], 'content': {'post_id': mockExclusiveTip['id'], 'type': 'tip', 'title': mockExclusiveTip['title']}},
+        {'id': 3, 'kind': 'download', 'title': 'eBook: Vibono-Grillbuch', 'description': '12 leichte Rezepte vom Grill als PDF.', 'cost_points': 500, 'file': {'name': 'vibono-grillbuch.pdf', 'size_bytes': 2400000, 'mime': 'application/pdf'}},
+        {'id': 4, 'kind': 'renewal_discount', 'title': '10 € Rabatt auf deine Verlängerung', 'description': 'Persönlicher Gutschein für die Verlängerung deines Coachings auf vibono.de.', 'cost_points': 1000, 'discount': {'type': 'fixed', 'amount': 10, 'label': '10 € Rabatt', 'valid_days': 90}},
+      ];
+
+  List<Json> get _unlocks => [for (final u in (_store.readJson('mock.reward_unlocks') as List?) ?? const []) Json.from(u as Map)];
+
+  Map<String, Object?> _exclusiveFields(int postId) {
+    final def = _rewardDefs.where((d) => asMap(d['content'])?['post_id'] == postId).firstOrNull;
+    if (def == null) return const {};
+    final unlocked = _unlocks.any((u) => u['reward_id'] == def['id']);
+    return {
+      'exclusive': true,
+      'locked': !unlocked,
+      'reward': {'id': def['id'], 'cost_points': def['cost_points'], 'unlocked': unlocked},
+      if (!unlocked) 'ingredients': const <Object>[],
+    };
+  }
+
+  @override
+  Future<RewardCatalog> rewards(String platform) async {
+    await _wait();
+    final kinds = (await config(platform)).rewardKinds;
+    final balance = _balance;
+    final unlocks = _unlocks;
+    return RewardCatalog.fromJson({
+      'balance': balance,
+      'items': [
+        for (final d in _rewardDefs)
+          if (kinds.contains(d['kind']))
+            () {
+              final n = unlocks.where((u) => u['reward_id'] == d['id']).length;
+              final once = d['kind'] != 'renewal_discount';
+              final reason = n > 0 ? (once ? 'already_unlocked' : 'limit_reached') : (balance < (d['cost_points'] as int) ? 'insufficient_points' : null);
+              return {...d, 'redeemed_count': n, 'unlocked': once && n > 0, 'can_redeem': reason == null, 'unavailable_reason': reason};
+            }(),
+      ],
+      'unlocked': [for (final u in unlocks.reversed) if (kinds.contains(u['kind'])) u],
+    });
+  }
+
+  @override
+  Future<RewardRedeemResult> redeemReward(int rewardId, String platform) async {
+    await _wait(const Duration(milliseconds: 500));
+    final item = (await rewards(platform)).items.where((r) => r.id == rewardId).firstOrNull;
+    if (item == null) throw const ApiException(403, 'vibono_not_available_here', 'Nicht in der App einlösbar.');
+    if (!item.canRedeem) {
+      throw ApiException(409, 'vibono_${item.unavailableReason}', 'Die Prämie kann gerade nicht eingelöst werden.');
+    }
+    final award = await _award(-item.costPoints, 'reward', 'Prämie: ${item.title}');
+    final unlock = <String, dynamic>{
+      'id': DateTime.now().millisecondsSinceEpoch,
+      'reward_id': item.id,
+      'kind': rewardKindKey(item.kind),
+      'title': item.title,
+      'points': item.costPoints,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'post_id': item.postId,
+      if (item.kind == RewardKind.renewalDiscount)
+        'coupon': {'code': 'VP-DEMO-${_rnd.nextInt(9000) + 1000}', 'label': item.discountLabel, 'used': false, 'expires_at': DateTime.now().add(const Duration(days: 90)).toUtc().toIso8601String()},
+    };
+    await _store.writeJson('mock.reward_unlocks', [..._unlocks, unlock]);
+    return RewardRedeemResult(unlock: RewardUnlock.fromJson(unlock), balance: award.balance);
+  }
+
+  @override
+  Future<Uri> rewardDownload(int rewardId) async {
+    await _wait();
+    if (!_unlocks.any((u) => u['reward_id'] == rewardId)) {
+      throw const ApiException(403, 'vibono_reward_locked', 'Bitte schalte die Datei zuerst mit deinen Punkten frei.');
+    }
+    // Demo: Auf vibono.de liefert das Plugin hier einen kurzlebigen, signierten Download-Link.
+    return Uri.parse('https://www.vibono.de/');
   }
 
   @override

@@ -16,7 +16,7 @@ Stand: November 2026. Gilt für das Plugin „Vibono App API & Punkte“ ab dies
 |---|---|
 | WordPress ≥ 6.2, PHP ≥ 8.1 | WordPress verhindert die Aktivierung bei älteren Versionen |
 | HTTPS und sprechende Permalinks | Die App spricht `https://www.vibono.de/wp-json/vibono/v1` an |
-| WooCommerce | nur für die Module „Punkte im Shop“ und „Freunde werben“ |
+| WooCommerce | nur für die Module „Punkte im Shop“, „Freunde werben“ und die Prämie „Rabatt auf die Verlängerung“ |
 | WooCommerce Memberships | Prüfung, welche Coaching-Inhalte freigeschaltet sind |
 | Zugang zu `wp-config.php` (SFTP/SSH), ideal WP-CLI | Schlüssel eintragen, Befehle `wp vibono …` |
 | Staging-Kopie von vibono.de | **Alles zuerst dort testen** |
@@ -49,7 +49,8 @@ Jede Stufe einzeln einschalten, auf Staging prüfen, dann auf vibono.de wiederho
 | 1 | **App-Schnittstelle** (nach Aktivierung an) | Nichts. MyVibono-Felder des Themes werden nur gelesen. | App-Login, Tagesübersicht, Favoriten aus der Website erscheinen in der App |
 | 2 | Tab **App-Schnittstelle**: Inhaltstypen, Kurse je Phase, MyVibono-Speicherorte | Nichts | Braucht den Theme-Code (`wp-content/themes/vibono`). Werte stehen in der README unter „Annahmen“ |
 | 3 | **MyVibono-Daten auf die Website schreiben** | App-Änderungen erscheinen in MyVibono | Testkonto: Favorit in der App setzen → auf der Website sichtbar und MyVibono funktioniert normal. Der alte Wert wird vorher automatisch gesichert |
-| 4 | **Punkte im Shop** | Hinweis „Mit diesem Kauf sammelst du …“ auf Produktseiten, Einlösefeld im Warenkorb, Info-Zeile an der Kasse, Reiter „Vibono-Punkte“ in Mein Konto; Punkte für bezahlte Bestellungen | Testbestellung mit Testzahlungsart: Punkte einlösen, bestellen, stornieren → Punkte zurück. Gutschein mit „Individuelle Nutzung“ kombinieren → Punkte werden nicht zusätzlich angerechnet |
+| 4 | **Punkte im Shop** | Reiter „Vibono-Punkte“ in Mein Konto. Punkte für Einkäufe und Guthaben an der Kasse sind seit 21.11.2026 zusätzlich einzeln abgeschaltet (Kurs & Regeln → „Früher: Einkäufe und Guthaben an der Kasse“) | Mein Konto → Vibono-Punkte zeigt Kontostand und Verlauf. Nur falls Kasse wieder an: Punkte einlösen, bestellen, stornieren → Punkte zurück |
+| 4a | **Prämien** | Reiter „Vibono-Punkte“ in Mein Konto mit „Punkte einlösen“. Beiträge, die als exklusive Prämie angelegt sind, zeigen nur noch einen Anriss mit Einlöse-Kasten. Gutscheine `VP-…` für die Verlängerung | Erst Prämien unter **Vibono-Punkte → Prämien** anlegen (dabei noch aus), dann einschalten. Testkonto: Prämie einlösen, Beitrag lesen, PDF laden, Gutschein im Warenkorb des Verlängerungs-Produkts |
 | 5 | **Lesepunkte auf der Website** | Kleines Skript auf belohnten Beitragsseiten, nur für eingeloggte Nutzer*innen | Artikel lesen → Hinweis „+10 Punkte“ |
 | 6 | **Freunde werben** | Empfehlungslinks `?vref=…` setzen ein Cookie | Erst nach der Übernahme aus Refer a Friend (siehe `MIGRATION-REFER-A-FRIEND.md`): `wp vibono migrate-raf --dry-run`, dann ohne `--dry-run`, Refer a Friend deaktivieren, Modul einschalten |
 
@@ -66,8 +67,9 @@ Die App liest über `GET /config` → `features`, welche Module an sind, und ble
 | MyVibono-Felder des Themes | nur wenn Speicherort eingetragen | Lesen; schreiben nur mit Schalter „MyVibono-Daten auf die Website schreiben“; vorher einmalige Sicherung in `_vibono_bak_<feld>`; Speicherformat (Array, JSON, Komma-Liste) bleibt | Keine Theme-Dateien, keine anderen Felder |
 | Beiträge | Lesepunkte | Meta `_vibono_quiz` (nur wenn die Redaktion eine Quizfrage pflegt), `_vibono_word_count` (Zwischenspeicher). Box „Quizfrage“ im Editor | Inhalte und Änderungsdatum bleiben unverändert |
 | Bestellungen | Punkte im Shop / Freunde werben | Meta `_vibono_points_redeemed`, `_vibono_points_value_cents`, `_vibono_referrer`. Eingelöste Punkte erscheinen als Gutschein-Zeile „vibono-punkte“ | Keine Änderung an Preisen, Steuern, Status, Zahlungen oder E-Mails. Kein erneutes Speichern der ganzen Bestellung |
-| Gutscheine | Punkte im Shop | Virtueller Gutschein „vibono-punkte“, existiert nur im Warenkorb | Legt keine echten Gutscheine an. Ausnahme auf ausdrücklichen Befehl: `wp vibono migrate-raf --coupon-meta=…` beendet alte Refer-a-Friend-Gutscheine und merkt sich das alte Ablaufdatum |
+| Gutscheine | Punkte im Shop (Kasse), Prämien | Virtueller Gutschein „vibono-punkte“, existiert nur im Warenkorb. Prämie „Rabatt auf die Verlängerung“: echter, persönlicher Einmal-Gutschein `VP-…` (an E-Mail und Produkte gebunden, mit Ablaufdatum) | Legt sonst keine echten Gutscheine an. Ausnahme auf ausdrücklichen Befehl: `wp vibono migrate-raf --coupon-meta=…` beendet alte Refer-a-Friend-Gutscheine und merkt sich das alte Ablaufdatum |
 | Shop-Seiten | Punkte im Shop | Hinweis am Produkt, Einlösefeld im klassischen Warenkorb, Info-Zeile an der Kasse (ohne eigenes Formular), Reiter in Mein Konto | Löscht keine Shop-Hinweise anderer Plugins, verschachtelt keine Formulare |
+| Beiträge (exklusiv) | Prämien | Beiträge, die in einer Inhalts-Prämie hinterlegt sind, zeigen ohne Freischaltung nur Anriss und Einlöse-Kasten (Seite, WP-REST, Feed). Tabellen `vibono_rewards`, `vibono_reward_unlocks` | Ändert keine Beiträge, Rechte oder Mitgliedschaften. Andere Beiträge bleiben unberührt |
 | Cookies | Freunde werben | `vibono_ref` (30 Tage), nur nach Klick auf einen Empfehlungslink | Im Cookie-Banner und in der Datenschutzerklärung ergänzen, wie bisher beim Cookie von Refer a Friend |
 | Refer a Friend | Freunde werben | Wertet auch alte `?raf=`-Links aus und übernimmt alte Codes (`wp vibono migrate-raf`). Läuft Refer a Friend noch, warnt die Systemprüfung: dort Belohnungen abschalten | Ändert nichts an Refer a Friend selbst |
 | Cron | immer | `vibono_points_daily`, stündlich: vorgemerkte Punkte bestätigen, alte Lese-Sessions löschen | |
@@ -77,7 +79,8 @@ Die App liest über `GET /config` → `features`, welche Module an sind, und ble
 
 ## 5. Schutzmechanismen im Code
 
-- **Module mit sicheren Standardwerten** (`Settings::defaults()`): Shop, Werben, Lesepunkte, Schreiben ins Theme und Datenlöschung sind aus.
+- **Module mit sicheren Standardwerten** (`Settings::defaults()`): Shop, Werben, Lesepunkte, Prämien, Schreiben ins Theme und Datenlöschung sind aus. Punkte für Einkäufe und Guthaben an der Kasse sind auch bei eingeschaltetem Shop aus.
+- **Prämien**: Einlösen unter Sperre je Konto, Rückbuchung bei Fehler. Exklusive Beiträge sind nur gesperrt, solange das Modul an ist; ausschalten macht sie wieder normal sichtbar.
 - **Fehlerschutz** (`Plugin::hook()`): Alle Hooks laufen in `try/catch`. Ein Fehler landet im PHP-Fehlerlog und in der Systemprüfung, Filter geben den unveränderten Wert zurück.
 - **Shop**: Der Punkte-Gutschein wird leise angemeldet (keine „Gutschein angewendet“-Meldung, keine gelöschten fremden Hinweise). Ist die Einlösung nicht mehr gedeckt oder liegt ein Gutschein „nur allein gültig“ im Warenkorb, wird sie still zurückgenommen. Abbuchung und Rückbuchung sind je Bestellung nur einmal möglich, zurückgebucht wird nur, was wirklich abgebucht wurde.
 - **Buchhaltung läuft immer**: Stornos und abgeschlossene Bestellungen werden auch bei ausgeschalteten Modulen korrekt verbucht.
