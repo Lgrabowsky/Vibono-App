@@ -13,7 +13,7 @@
 defined( 'ABSPATH' ) || exit;
 
 define( 'VIBONO_API_VERSION', '1.0.0' );
-define( 'VIBONO_API_DB_VERSION', '2' );
+define( 'VIBONO_API_DB_VERSION', '3' );
 define( 'VIBONO_API_FILE', __FILE__ );
 define( 'VIBONO_API_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VIBONO_API_URL', plugin_dir_url( __FILE__ ) );

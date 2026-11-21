@@ -76,7 +76,7 @@ class Points {
 	/**
 	 * Punkte für eine Aktion gutschreiben (mit Aktions-Multiplikator).
 	 *
-	 * @param string $reason app_open|article_read|referral|referral_friend|purchase
+	 * @param string $reason app_open|article_read|lesson_done|course_done|referral|referral_friend|purchase
 	 * @param array  $args   idempotency_key, label, ref_type, ref_id, pending_days, meta
 	 */
 	public static function earn( int $user_id, string $reason, int $base, array $args = array() ): array {
@@ -180,14 +180,11 @@ class Points {
 		$eff       = PointsMath::effective_cents_per_point( $cpp, $campaigns, time() );
 		$balance   = self::balance( $user_id );
 		$rules     = array();
-		foreach ( array(
-			'app_open'        => 'earn_app_open',
-			'article_read'    => 'earn_article_read',
-			'referral'        => 'earn_referral',
-			'referral_friend' => 'earn_referral_friend',
-			'purchase'        => 'earn_purchase_per_euro',
-		) as $reason => $setting ) {
-			$rules[ $reason ] = PointsMath::earn( (int) Settings::get( $setting ), $campaigns, time(), $reason )['points'];
+		foreach ( self::earn_settings() as $reason => $setting ) {
+			$base = (int) Settings::get( $setting );
+			if ( $base > 0 ) {
+				$rules[ $reason ] = PointsMath::earn( $base, $campaigns, time(), $reason )['points'];
+			}
 		}
 		return array(
 			'balance'                   => $balance,
@@ -199,6 +196,50 @@ class Points {
 			'campaigns'                 => array_map( array( Campaigns::class, 'format' ), Campaigns::visible() ),
 			'streak'                    => Streak::view( $user_id ),
 		);
+	}
+
+	/**
+	 * Aktuelle Anlässe für Punkte (Grund => Einstellung mit dem Grundwert). Ausgeschaltete Anlässe fehlen,
+	 * damit App und Website sie nicht anzeigen.
+	 */
+	public static function earn_settings(): array {
+		$out = array(
+			'app_open'     => 'earn_app_open',
+			'article_read' => 'earn_article_read',
+			'lesson_done'  => 'earn_lesson_done',
+			'course_done'  => 'earn_course_done',
+		);
+		if ( Settings::on( 'module_referral' ) ) {
+			$out['referral']        = 'earn_referral';
+			$out['referral_friend'] = 'earn_referral_friend';
+		}
+		if ( WooCommerce::purchase_points_on() ) {
+			$out['purchase'] = 'earn_purchase_per_euro';
+		}
+		return $out;
+	}
+
+	/**
+	 * Führt $fn exklusiv für ein Punktekonto aus (verhindert, dass zwei gleichzeitige Einlösungen
+	 * denselben Kontostand ausgeben). Sperre über einen eindeutigen Options-Eintrag, funktioniert mit
+	 * MySQL und SQLite. Hängt eine Sperre länger als 30 Sekunden, gilt sie als verwaist.
+	 *
+	 * @return mixed Rückgabe von $fn oder WP_Error, wenn das Konto gerade gesperrt ist.
+	 */
+	public static function with_lock( int $user_id, callable $fn ) {
+		$name = 'vibono_points_lock_' . $user_id;
+		if ( ! add_option( $name, time(), '', false ) ) {
+			$since = (int) get_option( $name );
+			if ( $since && $since > time() - 30 ) {
+				return Plugin::error( 'vibono_busy', 'Bitte einen Moment warten und noch einmal versuchen.', 429 );
+			}
+			update_option( $name, time(), false );
+		}
+		try {
+			return $fn();
+		} finally {
+			delete_option( $name );
+		}
 	}
 
 	/**

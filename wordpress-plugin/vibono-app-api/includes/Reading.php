@@ -73,7 +73,7 @@ class Reading {
 	/** @return array|\WP_Error */
 	public static function start( int $user_id, int $post_id, string $channel ) {
 		global $wpdb;
-		if ( ! self::eligible( $post_id ) || ! Membership::can_view( $user_id, $post_id ) ) {
+		if ( ! self::eligible( $post_id ) || ! Membership::can_view( $user_id, $post_id ) || ! Rewards::can_view_post( $user_id, $post_id ) ) {
 			return Plugin::error( 'vibono_not_rewardable', 'Für diesen Beitrag gibt es keine Lesepunkte.', 404 );
 		}
 		if ( Points::has_key( self::reward_key( $user_id, $post_id ) ) ) {

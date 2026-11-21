@@ -31,7 +31,7 @@ function vibono_api_uninstall_site(): void {
 		return;
 	}
 
-	foreach ( array( 'tokens', 'sync', 'points_ledger', 'campaigns', 'reading', 'devices' ) as $name ) {
+	foreach ( array( 'tokens', 'sync', 'points_ledger', 'campaigns', 'rewards', 'reward_unlocks', 'reading', 'devices' ) as $name ) {
 		$wpdb->query( 'DROP TABLE IF EXISTS `' . esc_sql( $wpdb->prefix . 'vibono_' . $name ) . '`' ); // phpcs:ignore
 	}
 	foreach ( array( 'vibono_api_settings', 'vibono_api_jwt_secret', 'vibono_api_db_version', 'vibono_api_removed', 'vibono_points_rate_log', 'vibono_api_anthropic_key' ) as $option ) {

@@ -32,6 +32,13 @@ class SyncStore {
 	public static function put( int $user_id, string $collection, string $key, ?array $data, bool $deleted, int $updated_ms, string $source ): int {
 		global $wpdb;
 		$t = Install::table( 'sync' );
+		// Coaching-Fortschritt: Punkte nur, wenn das Häkchen neu gesetzt wird (vorher fehlend oder gelöscht).
+		$coaching = ! $deleted && in_array( $collection, array( 'lessons_done', 'courses_done' ), true );
+		$was_set  = false;
+		if ( $coaching ) {
+			$prev    = self::get( $user_id, $collection, $key );
+			$was_set = $prev && ! $prev['deleted'];
+		}
 		// Löschen + Einfügen statt UPDATE, damit seq (AUTO_INCREMENT) neu vergeben wird.
 		$wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE user_id = %d AND collection = %s AND item_key = %s", $user_id, $collection, $key ) );
 		$wpdb->insert(
@@ -46,7 +53,11 @@ class SyncStore {
 				'source'     => $source,
 			)
 		);
-		return (int) $wpdb->insert_id;
+		$seq = (int) $wpdb->insert_id;
+		if ( $coaching && ! $was_set ) {
+			Coaching::on_done( $user_id, $collection, $key, $source );
+		}
+		return $seq;
 	}
 
 	/**

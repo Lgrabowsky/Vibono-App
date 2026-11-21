@@ -10,6 +10,7 @@ use Vibono\AppApi\Install;
 use Vibono\AppApi\Points;
 use Vibono\AppApi\Profile;
 use Vibono\AppApi\Referral;
+use Vibono\AppApi\Rewards;
 use Vibono\AppApi\Settings;
 use Vibono\AppApi\SyncStore;
 use Vibono\AppApi\Plugin;
@@ -72,6 +73,31 @@ function vt_konto( string $email, string $vorname, string $nachname, string $bes
 
 function vt_sync( int $uid, string $collection, string $key, array $data = array() ): void {
 	SyncStore::apply( $uid, array( 'collection' => $collection, 'key' => $key, 'op' => 'upsert', 'data' => $data, 'updated_at' => gmdate( 'c' ) ), (int) floor( microtime( true ) * 1000 ) );
+}
+
+/** Minimale, gültige PDF-Datei mit einer Zeile Text (für das Demo-eBook). */
+function vt_pdf( string $text ): string {
+	$text    = str_replace( array( '\\', '(', ')' ), array( '\\\\', '\\(', '\\)' ), iconv( 'UTF-8', 'Windows-1252//TRANSLIT', $text ) );
+	$stream  = "BT /F1 18 Tf 60 760 Td ($text) Tj ET";
+	$objects = array(
+		'<< /Type /Catalog /Pages 2 0 R >>',
+		'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+		'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+		'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+		'<< /Length ' . strlen( $stream ) . " >>\nstream\n" . $stream . "\nendstream",
+	);
+	$pdf     = "%PDF-1.4\n";
+	$offsets = array();
+	foreach ( $objects as $i => $o ) {
+		$offsets[] = strlen( $pdf );
+		$pdf      .= ( $i + 1 ) . " 0 obj\n" . $o . "\nendobj\n";
+	}
+	$xref = strlen( $pdf );
+	$pdf .= 'xref' . "\n0 " . ( count( $objects ) + 1 ) . "\n0000000000 65535 f \n";
+	foreach ( $offsets as $off ) {
+		$pdf .= sprintf( "%010d 00000 n \n", $off );
+	}
+	return $pdf . 'trailer' . "\n<< /Size " . ( count( $objects ) + 1 ) . " /Root 1 0 R >>\nstartxref\n$xref\n%%EOF\n";
 }
 
 function vt_demodaten_anlegen(): void {
@@ -310,6 +336,18 @@ function vt_demodaten_anlegen(): void {
 		$prod->set_status( 'publish' );
 		$prod->save();
 	}
+	// Mitgliedschafts-Verlängerung (für die Prämie „Rabatt auf Verlängerung“).
+	$verl = new WC_Product_Simple();
+	$verl->set_name( 'Vibono-Coaching: Verlängerung 12 Monate' );
+	$verl->set_regular_price( '99.00' );
+	$verl->set_short_description( 'Ein weiteres Jahr Coaching, Rezepte und Lektionen.' );
+	$verl->set_description( 'Ein weiteres Jahr Coaching, Rezepte und Lektionen.' );
+	$verl->set_virtual( true );
+	$verl->set_menu_order( 10 );
+	$verl->set_status( 'publish' );
+	$verl->save();
+	update_option( 'vt_verlaengerung_id', $verl->get_id() );
+
 	// Unsichtbarer Testartikel für simulierte Bestellungen mit frei gewähltem Betrag.
 	$test = new WC_Product_Simple();
 	$test->set_name( 'Testeinkauf (frei wählbarer Betrag)' );
@@ -408,9 +446,64 @@ function vt_demodaten_anlegen(): void {
 	vt_sync( $anna, 'weekplan', $tag( 0 ) . ':abend', array( 'recipe_id' => $rezept_ids[3], 'portions' => 2 ) );
 	vt_sync( $anna, 'weekplan', $tag( 1 ) . ':abend', array( 'recipe_id' => $rezept_ids[2], 'portions' => 2 ) );
 
+	// ------------------------------------------------------------- Prämien
+	// Exklusiver Inhalt: ein Rezept und ein Tipp, die erst mit Punkten freigeschaltet werden.
+	$exkl_rezept = vt_beitrag(
+		'rezepte',
+		'Exklusiv: Zucchini-Lasagne',
+		vt_absaetze(
+			array(
+				'Eine Lasagne ohne Nudelplatten: Statt Teig schichtest du dünne Zucchinischeiben. Satt, leicht und ein Rezept, das es nur gegen Vibono-Punkte gibt.',
+				'<!-- wp:heading --><h2>Zutaten</h2><!-- /wp:heading -->',
+				'<!-- wp:list --><ul><li>3 Zucchini</li><li>250 g Magerquark</li><li>1 Dose stückige Tomaten (400 g)</li><li>1 Zwiebel</li><li>50 g geriebener Käse</li><li>1 TL Oregano</li></ul><!-- /wp:list -->',
+				'<!-- wp:heading --><h2>Zubereitung</h2><!-- /wp:heading -->',
+				'Zucchini längs in dünne Scheiben schneiden. Tomaten mit Zwiebel und Oregano einkochen. Abwechselnd Zucchini, Soße und Quark schichten, mit Käse bestreuen und bei 180 Grad 35 Minuten backen.',
+			)
+		),
+		array( 'zutaten' => "3 Zucchini\n250 g Magerquark\n1 Dose stückige Tomaten (400 g)\n1 Zwiebel\n50 g geriebener Käse\n1 TL Oregano", 'portionen' => 2, 'energiedichte' => '0,6' ),
+		array( 'rezeptmerkmal' => array( 'vegetarisch', 'glutenfrei' ) ),
+		0,
+		'Lasagne ohne Nudelplatten, dafür mit Zucchini. Exklusiv für Vibono-Punkte.'
+	);
+	$exkl_tipp = vt_beitrag(
+		'post',
+		'Exklusiv: 7 Tricks gegen Heißhunger am Abend',
+		vt_absaetze(
+			array(
+				'Heißhunger am Abend hat meistens einen von drei Gründen: zu wenig gegessen am Tag, zu wenig getrunken oder Langeweile.',
+				'1. Iss mittags eine große Portion Gemüse. 2. Trink am Nachmittag zwei Gläser Wasser. 3. Plane einen Abendsnack mit niedriger Energiedichte ein. 4. Putz dir nach dem Abendessen die Zähne. 5. Geh eine Runde spazieren. 6. Räum Süßes außer Sichtweite. 7. Geh rechtzeitig schlafen.',
+			)
+		),
+		array(),
+		array( 'category' => array( 'tipps' ) ),
+		0,
+		'Sieben einfache Tricks, die wirklich helfen. Exklusiv für Vibono-Punkte.'
+	);
+	// eBook als kleine PDF-Datei in der Mediathek.
+	$upload = wp_upload_dir();
+	$pdf    = $upload['basedir'] . '/vibono-grillbuch.pdf';
+	file_put_contents( $pdf, vt_pdf( 'Vibono-Grillbuch: 12 leichte Rezepte vom Grill' ) );
+	$ebook = wp_insert_attachment(
+		array( 'post_title' => 'Vibono-Grillbuch (eBook)', 'post_mime_type' => 'application/pdf', 'post_status' => 'inherit' ),
+		$pdf
+	);
+	$praemien = array(
+		array( 'kind' => 'content', 'title' => 'Exklusives Rezept: Zucchini-Lasagne', 'description' => 'Lasagne ohne Nudelplatten. Einmal freischalten, dauerhaft in App und auf vibono.de.', 'cost_points' => 300, 'post_id' => $exkl_rezept, 'sort_order' => 1 ),
+		array( 'kind' => 'content', 'title' => 'Exklusiver Tipp: 7 Tricks gegen Heißhunger', 'description' => 'Was abends wirklich gegen Heißhunger hilft.', 'cost_points' => 200, 'post_id' => $exkl_tipp, 'sort_order' => 2 ),
+		array( 'kind' => 'download', 'title' => 'eBook: Vibono-Grillbuch', 'description' => '12 leichte Rezepte vom Grill als PDF.', 'cost_points' => 500, 'attachment_id' => $ebook, 'sort_order' => 3 ),
+		array( 'kind' => 'renewal_discount', 'title' => '10 € Rabatt auf deine Verlängerung', 'description' => 'Persönlicher Gutschein für die Verlängerung deines Coachings auf vibono.de.', 'cost_points' => 1000, 'discount_type' => 'fixed', 'discount_amount' => 10, 'product_ids' => array( $verl->get_id() ), 'valid_days' => 90, 'per_user_limit' => 1, 'sort_order' => 4 ),
+	);
+	foreach ( $praemien as $pr ) {
+		$res = Rewards::save( $pr + array( 'enabled' => true ) );
+		if ( is_wp_error( $res ) ) {
+			throw new RuntimeException( $res->get_error_message() );
+		}
+	}
+
 	// -------------------------------------------------------------- Punkte
-	// Annas Vorgeschichte: Startguthaben (manuelle Buchung), ein abgeschlossener Einkauf mit abgelaufener Frist.
-	Points::book( $anna, 1200, 'admin', 'Startguthaben der Testumgebung' );
+	// Annas Vorgeschichte: Startguthaben (manuelle Buchung), ein abgeschlossener Einkauf mit abgelaufener Frist
+	// (bringt seit 21.11.2026 keine Punkte mehr), Punkte für die vier erledigten Lektionen (oben).
+	Points::book( $anna, 2500, 'admin', 'Startguthaben der Testumgebung' );
 	$order = vt_bestellung_anlegen( $anna, array( array( 'product_id' => wc_get_products( array( 'limit' => 1, 'orderby' => 'menu_order', 'order' => 'ASC', 'return' => 'ids' ) )[0], 'menge' => 2 ) ), 0, 'completed' );
 	vt_frist_ueberspringen( $anna );
 
@@ -433,7 +526,7 @@ function vt_demodaten_anlegen(): void {
 
 	// Ältere Buchungen etwas in die Vergangenheit legen, damit der Verlauf realistisch aussieht.
 	$t = Install::table( 'points_ledger' );
-	$wpdb->query( $wpdb->prepare( "UPDATE $t SET created_at = DATE_SUB(created_at, INTERVAL 20 DAY) WHERE user_id = %d AND reason IN ('admin','purchase')", $anna ) ); // phpcs:ignore
+	$wpdb->query( $wpdb->prepare( "UPDATE $t SET created_at = DATE_SUB(created_at, INTERVAL 20 DAY) WHERE user_id = %d AND reason IN ('admin','purchase','lesson_done','course_done')", $anna ) ); // phpcs:ignore
 
 	// ------------------------------------------------------------- Aktionen
 	$jetzt = time();

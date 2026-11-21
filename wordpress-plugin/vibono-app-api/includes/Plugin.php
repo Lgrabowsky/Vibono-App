@@ -38,6 +38,7 @@ class Plugin {
 		if ( Settings::on( 'module_referral' ) ) {
 			Referral::init();
 		}
+		Rewards::init();
 		if ( class_exists( 'WooCommerce' ) ) {
 			WooCommerce::init();
 		}
@@ -88,6 +89,7 @@ class Plugin {
 		( new Rest\PointsController() )->register();
 		( new Rest\ReadingController() )->register();
 		( new Rest\ReferralController() )->register();
+		( new Rest\RewardsController() )->register();
 		( new Rest\EnergyController() )->register();
 	}
 

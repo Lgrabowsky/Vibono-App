@@ -10,7 +10,7 @@ namespace Vibono\AppApi\Core;
  */
 class PointsMath {
 
-	const EARN_REASONS = array( 'app_open', 'article_read', 'referral', 'referral_friend', 'purchase' );
+	const EARN_REASONS = array( 'app_open', 'article_read', 'lesson_done', 'course_done', 'referral', 'referral_friend', 'purchase' );
 
 	/** Aktionen, die zum Zeitpunkt $now aktiv sind. */
 	public static function active( array $campaigns, int $now, string $kind, ?string $reason = null ): array {

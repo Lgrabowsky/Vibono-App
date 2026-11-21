@@ -21,6 +21,8 @@ class Admin {
 		add_action( 'admin_post_vibono_save_campaign', array( self::class, 'save_campaign' ) );
 		add_action( 'admin_post_vibono_delete_campaign', array( self::class, 'delete_campaign' ) );
 		add_action( 'admin_post_vibono_adjust_points', array( self::class, 'adjust_points' ) );
+		add_action( 'admin_post_vibono_save_reward', array( self::class, 'save_reward' ) );
+		add_action( 'admin_post_vibono_delete_reward', array( self::class, 'delete_reward' ) );
 	}
 
 	private static function cap(): string {
@@ -47,6 +49,7 @@ class Admin {
 			'overview'  => 'Übersicht',
 			'rules'     => 'Kurs & Regeln',
 			'campaigns' => 'Aktionen',
+			'rewards'   => 'Prämien',
 			'adjust'    => 'Punkte buchen',
 			'app'       => 'App-Schnittstelle',
 			'modules'   => 'Module & Anbindung',
@@ -99,11 +102,15 @@ class Admin {
 		return array(
 			'app_open'        => 'App geöffnet',
 			'article_read'    => 'Artikel gelesen',
+			'lesson_done'     => 'Lektion erledigt',
+			'course_done'     => 'Kurs abgeschlossen',
 			'referral'        => 'Kund*in geworben',
 			'referral_friend' => 'Willkommensbonus Geworbene',
 			'purchase'        => 'Einkauf',
 			'redeem'          => 'Eingelöst',
 			'redeem_refund'   => 'Einlösung zurückgebucht',
+			'reward'          => 'Prämie eingelöst',
+			'reward_refund'   => 'Prämie zurückgebucht',
 			'admin'           => 'Manuelle Buchung',
 			'migration'       => 'Übernahme Refer-a-friend',
 			'expire'          => 'Verfallen',
@@ -149,18 +156,25 @@ class Admin {
 
 	private static function tab_rules(): void {
 		self::form_start( 'rules' );
-		self::field( 'cents_per_point', 'Wert eines Punktes (Cent)', 'number', 'Umrechnungskurs. Start: 1 Punkt = 1 Cent. Gilt sofort für alle neuen Einlösungen.' );
+		self::field( 'cents_per_point', 'Wert eines Punktes (Cent)', 'number', 'Umrechnungskurs. Start: 1 Punkt = 1 Cent. Dient als Richtwert für Prämien (z. B. 1.000 Punkte für 10 € Verlängerungsrabatt) und für das Guthaben an der Kasse, falls eingeschaltet.' );
 		echo '<tr><th colspan="2"><h2>Punkte verdienen</h2></th></tr>';
 		self::field( 'earn_app_open', 'App täglich öffnen', 'number', 'Punkte einmal pro Kalendertag. Mit Serie: Punkte für Tag 1.' );
-		self::field( 'earn_article_read', 'Artikel gelesen', 'number', 'Nur mit Lese-Nachweis, einmal je Artikel.' );
+		self::field( 'earn_article_read', 'Artikel komplett gelesen', 'number', 'Nur mit Lese-Nachweis, einmal je Artikel.' );
 		self::field( 'article_read_daily_cap', 'Max. belohnte Artikel pro Tag' );
+		echo '<tr><th colspan="2"><h3>Coaching-Fortschritt</h3><p style="font-weight:normal;max-width:760px">Punkte für das Häkchen „Lektion erledigt“ in der App oder unter „Mein Coaching“ auf vibono.de. Einmal je Lektion; Häkchen entfernen und neu setzen bringt nichts. Was beim ersten Abgleich mit der Website schon erledigt war, bringt keine Punkte. 0 = aus.</p></th></tr>';
+		self::field( 'earn_lesson_done', 'Lektion erledigt' );
+		self::field( 'lesson_done_daily_cap', 'Max. belohnte Lektionen pro Tag', 'number', '0 = unbegrenzt.' );
+		self::field( 'earn_course_done', 'Kurs abgeschlossen (Bonus)', 'number', 'Wenn alle veröffentlichten Lektionen eines Kurses erledigt sind, einmal je Kurs.' );
+		echo '<tr><th colspan="2"><h3>Neukund*innen werben</h3></th></tr>';
 		self::field( 'earn_referral', 'Kund*in geworben', 'number', 'Für die werbende Person, nach der ersten bezahlten Bestellung der geworbenen Person.' );
 		self::field( 'earn_referral_friend', 'Willkommensbonus für Geworbene' );
 		self::field( 'referral_min_order_cents', 'Mindestbestellwert für Werbeprämie (Cent)' );
-		self::field( 'earn_purchase_per_euro', 'Punkte je Euro Einkauf', 'number', 'Warenwert ohne Versand, nach Rabatten und Punkte-Einlösung. 5 = 5 % zurück bei 1 Cent/Punkt.' );
-		self::field( 'pending_days', 'Vormerkzeit (Tage)', 'number', 'Kauf- und Empfehlungspunkte werden erst nach dieser Frist ab "Abgeschlossen" gutgeschrieben (Widerruf).' );
+		self::field( 'pending_days', 'Vormerkzeit (Tage)', 'number', 'Empfehlungs- (und ggf. Kauf-)Punkte werden erst nach dieser Frist ab "Abgeschlossen" gutgeschrieben (Widerruf).' );
 		self::streak_fields();
-		echo '<tr><th colspan="2"><h2>Einlösen im Shop</h2></th></tr>';
+		echo '<tr><th colspan="2"><h2>Früher: Einkäufe und Guthaben an der Kasse</h2><p style="font-weight:normal;max-width:760px">Seit dem 21.11.2026 gibt es keine Punkte mehr für Einkäufe, und Punkte werden gegen Prämien eingelöst statt als Guthaben an der Kasse. Beides lässt sich hier wieder einschalten (wirkt nur mit Modul „Punkte im Shop“).</p></th></tr>';
+		self::field( 'earn_purchases', 'Punkte für Einkäufe', 'checkbox' );
+		self::field( 'earn_purchase_per_euro', 'Punkte je Euro Einkauf', 'number', 'Warenwert ohne Versand, nach Rabatten und Punkte-Einlösung. 5 = 5 % zurück bei 1 Cent/Punkt.' );
+		self::field( 'redeem_at_checkout', 'Punkte im Warenkorb als Guthaben einlösen', 'checkbox' );
 		self::field( 'max_redeem_percent', 'Max. Anteil am Warenwert (%)' );
 		self::field( 'min_redeem_points', 'Mindestens einzulösende Punkte' );
 		echo '<tr><th colspan="2"><h2>Lese-Nachweis</h2></th></tr>';
@@ -240,6 +254,14 @@ class Admin {
 			}
 			echo '</td></tr>';
 		}
+		foreach ( array( 'ios' => 'iOS', 'android' => 'Android' ) as $pf => $pl ) {
+			$v = (array) Settings::get( 'rewards_app_' . $pf );
+			echo '<tr><th>' . esc_html( $pl ) . ': Prämien in der App einlösen</th><td>';
+			foreach ( array( 'content' => 'Exklusive Inhalte', 'download' => 'eBooks/PDFs', 'renewal_discount' => 'Rabatt auf Verlängerung' ) as $f => $fl ) {
+				printf( '<label style="margin-right:16px"><input type="checkbox" name="reward_kinds[%s][%s]" value="1" %s> %s</label>', esc_attr( $pf ), esc_attr( $f ), checked( ! empty( $v[ $f ] ), true, false ), esc_html( $fl ) );
+			}
+			echo '<p class="description">Nicht angehakte Arten erscheinen nicht in der App und sind nur auf vibono.de unter Mein Konto einlösbar.</p></td></tr>';
+		}
 		self::field( 'shop_url', 'Shop-URL', 'url' );
 		self::field( 'min_app_version', 'Mindest-App-Version', 'text' );
 		echo '<tr><th colspan="2"><h2>Energiedichte-Rechner (Bildauswertung)</h2></th></tr>';
@@ -260,6 +282,7 @@ class Admin {
 		self::field( 'module_shop', 'Punkte im Shop', 'checkbox', 'Punkte für Einkäufe, Einlösen im Warenkorb, Hinweis auf Produktseiten, Reiter „Vibono-Punkte“ in Mein Konto.' );
 		self::field( 'module_referral', 'Freunde werben', 'checkbox', 'Empfehlungslinks (?vref=…) und Prämien für erste Bestellungen. Erst einschalten, wenn Refer a Friend abgeschaltet ist oder die Übernahme geplant ist.' );
 		self::field( 'module_web_reading', 'Lesepunkte auf der Website', 'checkbox', 'Lädt ein kleines Skript auf belohnten Beitragsseiten für eingeloggte Nutzer*innen.' );
+		self::field( 'module_rewards', 'Prämien', 'checkbox', 'Punkte gegen exklusive Inhalte, eBooks/PDFs und Verlängerungsrabatt einlösen (App und Mein Konto → Vibono-Punkte). Sperrt exklusive Beiträge auf der Website, bis sie freigeschaltet sind.' );
 		self::field( 'myvibono_write', 'MyVibono-Daten auf die Website schreiben', 'checkbox', 'Aus = das Plugin liest die MyVibono-Felder des Themes nur. Erst einschalten, wenn die Speicherorte geprüft sind. Vor dem ersten Schreiben wird der alte Wert gesichert.' );
 		self::field( 'delete_data_on_uninstall', 'Beim Löschen des Plugins alle Daten entfernen', 'checkbox', 'Aus = Tabellen und Punktestände bleiben beim Löschen erhalten. Vorher sichern: wp vibono export-points.' );
 		self::form_end();
@@ -317,6 +340,14 @@ class Admin {
 			foreach ( array( 'vorbereitung', 'phase1', 'phase2', 'phase3' ) as $k ) {
 				$out['phase_terms'][ $k ] = array_values( array_filter( array_map( 'absint', explode( ',', (string) ( $pt[ $k ] ?? '' ) ) ) ) );
 			}
+			$rk = (array) ( $_POST['reward_kinds'] ?? array() ); // phpcs:ignore
+			foreach ( array( 'ios', 'android' ) as $pf ) {
+				$out[ 'rewards_app_' . $pf ] = array(
+					'content'          => ! empty( $rk[ $pf ]['content'] ),
+					'download'         => ! empty( $rk[ $pf ]['download'] ),
+					'renewal_discount' => ! empty( $rk[ $pf ]['renewal_discount'] ),
+				);
+			}
 			$links = (array) ( $_POST['links'] ?? array() ); // phpcs:ignore
 			foreach ( array( 'ios', 'android' ) as $pf ) {
 				$out[ 'shop_links_' . $pf ] = array(
@@ -331,9 +362,9 @@ class Admin {
 			exit;
 		}
 		$old      = (float) Settings::get( 'cents_per_point' );
-		$old_shop = Settings::on( 'module_shop' );
+		$old_shop = WooCommerce::account_tab_on();
 		Settings::update( $out );
-		if ( isset( $out['module_shop'] ) && $out['module_shop'] !== $old_shop ) {
+		if ( WooCommerce::account_tab_on() !== $old_shop ) {
 			// Reiter "Mein Konto → Vibono-Punkte" kommt oder geht: Permalink-Regeln neu aufbauen lassen.
 			delete_option( 'rewrite_rules' );
 		}
@@ -437,6 +468,106 @@ class Admin {
 		self::guard( 'vibono_delete_campaign' );
 		Campaigns::delete( absint( $_GET['id'] ?? 0 ) ); // phpcs:ignore
 		wp_safe_redirect( self::url( 'campaigns', array( 'msg' => 'Aktion gelöscht.' ) ) );
+		exit;
+	}
+
+	// -------------------------------------------------------------- Prämien
+
+	private static function tab_rewards(): void {
+		global $wpdb;
+		$edit  = isset( $_GET['edit'] ) ? absint( $_GET['edit'] ) : 0; // phpcs:ignore
+		$cur   = $edit ? Rewards::get( $edit ) : null;
+		$kinds = array( 'content' => 'Exklusiver Inhalt', 'download' => 'eBook/PDF', 'renewal_discount' => 'Rabatt auf Verlängerung' );
+		$cpp   = (float) Settings::get( 'cents_per_point' );
+		if ( ! Settings::on( 'module_rewards' ) ) {
+			echo '<div class="notice notice-warning inline"><p>Das Modul „Prämien“ ist ausgeschaltet (Reiter „Module & Anbindung“). Prämien lassen sich vorbereiten, sind aber noch nicht sichtbar.</p></div>';
+		}
+		echo '<h2>Prämien</h2><p style="max-width:760px">Wofür Punkte eingelöst werden können. <strong>Exklusiver Inhalt</strong>: ein Beitrag (Rezept, Tipp, …) ist für alle gesperrt und wird mit Punkten dauerhaft freigeschaltet. <strong>eBook/PDF</strong>: eine Datei aus der Mediathek, Download nur über kurzlebige Links. <strong>Rabatt auf Verlängerung</strong>: persönlicher Einmal-Gutschein für den Shop. Abschalten statt Löschen: Wer eine Prämie schon hat, behält sie.</p>';
+		$counts = array();
+		foreach ( (array) $wpdb->get_results( 'SELECT reward_id, COUNT(*) n FROM ' . Install::table( 'reward_unlocks' ) . ' GROUP BY reward_id' ) as $row ) { // phpcs:ignore
+			$counts[ (int) $row->reward_id ] = (int) $row->n;
+		}
+		echo '<table class="widefat striped"><thead><tr><th>Titel</th><th>Art</th><th>Punkte</th><th>Was</th><th>Eingelöst</th><th>Status</th><th></th></tr></thead><tbody>';
+		foreach ( Rewards::all() as $r ) {
+			$what = 'content' === $r['kind'] ? ( get_the_title( $r['post_id'] ) . ' (#' . $r['post_id'] . ')' ) : ( 'download' === $r['kind'] ? basename( (string) get_attached_file( $r['attachment_id'] ) ) : Core\RewardRules::discount_label( $r['discount_type'], $r['discount_amount'] ) . ', ' . $r['valid_days'] . ' Tage gültig' );
+			$del  = wp_nonce_url( admin_url( 'admin-post.php?action=vibono_delete_reward&id=' . $r['id'] ), 'vibono_delete_reward' );
+			printf(
+				'<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td><a href="%s">Bearbeiten</a> | <a href="%s" onclick="return confirm(\'Prämie entfernen? Bereits eingelöste bleiben erhalten.\')">Entfernen</a></td></tr>',
+				esc_html( $r['title'] ),
+				esc_html( $kinds[ $r['kind'] ] ?? $r['kind'] ),
+				esc_html( number_format_i18n( $r['cost_points'] ) ),
+				esc_html( $what ),
+				(int) ( $counts[ $r['id'] ] ?? 0 ),
+				$r['enabled'] ? 'aktiv' : 'aus',
+				esc_url( self::url( 'rewards', array( 'edit' => $r['id'] ) ) ),
+				esc_url( $del )
+			);
+		}
+		echo '</tbody></table>';
+
+		$f = $cur ?: array( 'id' => 0, 'kind' => 'content', 'title' => '', 'description' => '', 'cost_points' => 300, 'post_id' => '', 'attachment_id' => '', 'discount_type' => 'fixed', 'discount_amount' => 10, 'product_ids' => array(), 'valid_days' => 90, 'per_user_limit' => 1, 'enabled' => true, 'sort_order' => 0 );
+		echo '<h2>' . ( $cur ? 'Prämie bearbeiten' : 'Neue Prämie' ) . '</h2>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="vibono_save_reward"><input type="hidden" name="id" value="' . (int) $f['id'] . '">';
+		wp_nonce_field( 'vibono_save_reward' );
+		echo '<table class="form-table"><tr><th>Art</th><td>';
+		foreach ( $kinds as $k => $l ) {
+			printf( '<label style="margin-right:16px"><input type="radio" name="kind" value="%s" %s> %s</label>', esc_attr( $k ), checked( $f['kind'], $k, false ), esc_html( $l ) );
+		}
+		echo '</td></tr>';
+		printf( '<tr><th>Titel</th><td><input type="text" class="regular-text" name="title" required value="%s"></td></tr>', esc_attr( $f['title'] ) );
+		printf( '<tr><th>Beschreibung (sichtbar in App und Mein Konto)</th><td><textarea class="large-text" rows="2" name="description">%s</textarea></td></tr>', esc_textarea( $f['description'] ) );
+		printf( '<tr><th>Kosten (Punkte)</th><td><input type="number" min="1" name="cost_points" required value="%d"> <span class="description">Richtwert: 1 Punkt = %s Cent</span></td></tr>', (int) $f['cost_points'], esc_html( number_format_i18n( $cpp, 2 ) ) );
+		printf( '<tr><th>Exklusiver Inhalt: Beitrags-ID</th><td><input type="number" min="0" name="post_id" value="%s"><p class="description">ID des Rezepts oder Tipps (steht in der Adresszeile beim Bearbeiten: post=123). Der Beitrag bleibt veröffentlicht, zeigt aber ohne Freischaltung nur den Anfang.</p></td></tr>', esc_attr( (string) $f['post_id'] ) );
+		printf( '<tr><th>eBook/PDF: Datei-ID</th><td><input type="number" min="0" name="attachment_id" value="%s"><p class="description">ID der Datei in der Mediathek (Medien → Datei → in der Adresszeile item=123). Die öffentliche Adresse der Datei nirgends verlinken.</p></td></tr>', esc_attr( (string) $f['attachment_id'] ) );
+		printf(
+			'<tr><th>Verlängerung: Rabatt</th><td><input type="number" step="0.01" min="0" name="discount_amount" value="%s"> <select name="discount_type"><option value="fixed" %s>€</option><option value="percent" %s>%%</option></select></td></tr>',
+			esc_attr( (string) $f['discount_amount'] ),
+			selected( $f['discount_type'], 'fixed', false ),
+			selected( $f['discount_type'], 'percent', false )
+		);
+		printf( '<tr><th>Verlängerung: Produkte</th><td><input type="text" class="regular-text" name="product_ids" value="%s"><p class="description">IDs der Mitgliedschafts-Produkte, kommagetrennt. Leer = Gutschein gilt für den ganzen Warenkorb.</p></td></tr>', esc_attr( implode( ', ', (array) $f['product_ids'] ) ) );
+		printf( '<tr><th>Verlängerung: Gutschein gültig (Tage)</th><td><input type="number" min="1" name="valid_days" value="%d"></td></tr>', (int) $f['valid_days'] );
+		printf( '<tr><th>Verlängerung: wie oft je Person</th><td><input type="number" min="0" name="per_user_limit" value="%d"> <span class="description">0 = beliebig oft. Inhalte und Dateien gibt es immer nur einmal.</span></td></tr>', (int) $f['per_user_limit'] );
+		printf( '<tr><th>Reihenfolge</th><td><input type="number" name="sort_order" value="%d"></td></tr>', (int) $f['sort_order'] );
+		printf( '<tr><th>Aktiv</th><td><input type="checkbox" name="enabled" value="1" %s></td></tr>', checked( (bool) $f['enabled'], true, false ) );
+		echo '</table>';
+		submit_button( $cur ? 'Prämie speichern' : 'Prämie anlegen' );
+		echo '</form>';
+	}
+
+	public static function save_reward(): void {
+		self::guard( 'vibono_save_reward' );
+		$p   = wp_unslash( $_POST ); // phpcs:ignore
+		$res = Rewards::save(
+			array(
+				'kind'            => sanitize_key( $p['kind'] ?? '' ),
+				'title'           => $p['title'] ?? '',
+				'description'     => $p['description'] ?? '',
+				'cost_points'     => absint( $p['cost_points'] ?? 0 ),
+				'post_id'         => absint( $p['post_id'] ?? 0 ),
+				'attachment_id'   => absint( $p['attachment_id'] ?? 0 ),
+				'discount_type'   => sanitize_key( $p['discount_type'] ?? 'fixed' ),
+				'discount_amount' => (string) ( $p['discount_amount'] ?? '' ),
+				'product_ids'     => (string) ( $p['product_ids'] ?? '' ),
+				'valid_days'      => absint( $p['valid_days'] ?? 90 ),
+				'per_user_limit'  => absint( $p['per_user_limit'] ?? 1 ),
+				'sort_order'      => (int) ( $p['sort_order'] ?? 0 ),
+				'enabled'         => ! empty( $p['enabled'] ),
+			),
+			absint( $p['id'] ?? 0 )
+		);
+		if ( is_wp_error( $res ) ) {
+			wp_safe_redirect( self::url( 'rewards', array( 'msg' => $res->get_error_message(), 'err' => 1, 'edit' => absint( $p['id'] ?? 0 ) ) ) );
+		} else {
+			wp_safe_redirect( self::url( 'rewards', array( 'msg' => 'Prämie gespeichert.' ) ) );
+		}
+		exit;
+	}
+
+	public static function delete_reward(): void {
+		self::guard( 'vibono_delete_reward' );
+		Rewards::delete( absint( $_GET['id'] ?? 0 ) ); // phpcs:ignore
+		wp_safe_redirect( self::url( 'rewards', array( 'msg' => 'Prämie entfernt.' ) ) );
 		exit;
 	}
 

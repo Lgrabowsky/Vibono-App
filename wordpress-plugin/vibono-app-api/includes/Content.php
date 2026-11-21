@@ -69,7 +69,9 @@ class Content {
 
 	public static function summary( \WP_Post $p, int $user_id, ?array $done = null ): array {
 		$kind      = self::kind_of( $p );
-		$locked    = ! Membership::can_view( $user_id, $p->ID );
+		// Exklusive Beiträge (Prämie "exklusiver Inhalt") sind gesperrt, bis sie mit Punkten freigeschaltet sind.
+		$reward    = Rewards::post_info( $user_id, $p->ID );
+		$locked    = ! Membership::can_view( $user_id, $p->ID ) || ( $reward && ! $reward['unlocked'] );
 		$tags      = array();
 		foreach ( get_object_taxonomies( $p->post_type ) as $tax ) {
 			$terms = get_the_terms( $p, $tax );
@@ -112,6 +114,8 @@ class Content {
 			'points_for_reading'  => $user_id && ! $locked ? Reading::points_for( $user_id, $p->ID ) : 0,
 			'requires_membership' => Membership::is_restricted( $p->ID ),
 			'locked'              => $locked,
+			'exclusive'           => null !== $reward,
+			'reward'              => $reward,
 			'done'                => 'lesson' === $kind && null !== $done ? isset( $done[ (string) $p->ID ] ) : null,
 			'modified_at'         => Plugin::iso( $p->post_modified_gmt ),
 		);
@@ -120,6 +124,10 @@ class Content {
 	public static function detail( \WP_Post $p, int $user_id ) {
 		if ( ! Membership::can_view( $user_id, $p->ID ) ) {
 			return Plugin::error( 'vibono_membership_required', 'Dieser Inhalt ist Teil einer Vibono-Mitgliedschaft.', 403, array( 'required_plans' => (array) Settings::get( 'coaching_membership_plans' ) ) );
+		}
+		$reward = Rewards::post_info( $user_id, $p->ID );
+		if ( $reward && ! $reward['unlocked'] ) {
+			return Plugin::error( 'vibono_reward_required', sprintf( 'Exklusiv: Schalte diesen Beitrag mit %s Punkten frei.', number_format_i18n( $reward['cost_points'] ) ), 403, array( 'reward_id' => $reward['id'], 'cost_points' => $reward['cost_points'] ) );
 		}
 		$done    = SyncStore::current_map( $user_id, 'lessons_done' );
 		$html    = apply_filters( 'the_content', $p->post_content ); // phpcs:ignore
