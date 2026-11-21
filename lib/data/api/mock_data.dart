@@ -90,6 +90,240 @@ const mockRecipes = <Map<String, dynamic>>[
       ['Gouda', 40, 360],
     ],
   },
+  // Saisonrezepte für Herbst und Winter (ohne Foto, bis echte Rezepte kommen).
+  {
+    'id': 9007,
+    'title': 'Kürbissuppe mit Ingwer',
+    'tags': ['mittag', 'abend', 'vegan', 'suppe', 'warm'],
+    'energy_density': 0.4,
+    'servings': 2,
+    'ingredients': [
+      ['Hokkaido-Kürbis', 500, 63],
+      ['Karotte', 150, 36],
+      ['Zwiebel', 80, 40],
+      ['Ingwer', 10, 80],
+      ['Gemüsebrühe', 600, 5],
+    ],
+  },
+  {
+    'id': 9008,
+    'title': 'Grünkohl-Kartoffel-Eintopf',
+    'tags': ['mittag', 'abend', 'vegetarisch', 'eintopf', 'warm', 'gemuese'],
+    'energy_density': 0.6,
+    'servings': 2,
+    'ingredients': [
+      ['Grünkohl', 400, 49],
+      ['Kartoffeln, gekocht', 300, 72],
+      ['Zwiebel', 80, 40],
+      ['Gemüsebrühe', 400, 5],
+      ['Senf', 10, 90],
+    ],
+  },
+  {
+    'id': 9009,
+    'title': 'Ofengemüse mit Roter Bete und Kräuterquark',
+    'tags': ['mittag', 'abend', 'vegetarisch', 'ofen', 'gemuese'],
+    'energy_density': 0.7,
+    'servings': 2,
+    'ingredients': [
+      ['Rote Bete', 300, 43],
+      ['Pastinake', 200, 75],
+      ['Karotte', 200, 36],
+      ['Magerquark', 150, 67],
+      ['Rapsöl', 10, 884],
+    ],
+  },
+  {
+    'id': 9010,
+    'title': 'Feldsalat mit Apfel und Birne',
+    'tags': ['mittag', 'abend', 'vegan', 'salat', 'schnell', 'gemuese', 'obst'],
+    'energy_density': 0.5,
+    'servings': 2,
+    'ingredients': [
+      ['Feldsalat', 150, 14],
+      ['Apfel', 150, 52],
+      ['Birne', 150, 57],
+      ['Gurke', 150, 12],
+      ['Walnüsse', 15, 654],
+    ],
+  },
+  {
+    'id': 9011,
+    'title': 'Warmer Apfel-Zimt-Porridge',
+    'tags': ['fruehstueck', 'vegetarisch', 'warm', 'obst'],
+    'energy_density': 0.9,
+    'servings': 2,
+    'ingredients': [
+      ['Haferflocken', 60, 370],
+      ['Milch 1,5 %', 400, 47],
+      ['Apfel', 200, 52],
+      ['Zimt', 2, 250],
+    ],
+  },
+  {
+    'id': 9012,
+    'title': 'Rosenkohl-Pfanne mit Hähnchen',
+    'tags': ['mittag', 'abend', 'fleisch', 'ut-geeignet', 'gemuese'],
+    'energy_density': 0.7,
+    'servings': 2,
+    'ingredients': [
+      ['Rosenkohl', 400, 43],
+      ['Hähnchenbrust', 250, 110],
+      ['Zwiebel', 80, 40],
+      ['Gemüsebrühe', 100, 5],
+    ],
+  },
+];
+
+/// Beispiel-Challenges für „Aktuelle Challenge“. Daten relativ zu heute,
+/// damit die Demo immer eine laufende Challenge zeigt.
+List<Map<String, dynamic>> mockChallenges(DateTime today) {
+  String d(DateTime x) => x.toIso8601String().substring(0, 10);
+  final christmas = DateTime(today.month == 12 && today.day > 24 ? today.year + 1 : today.year, 12, 24);
+  return [
+    {
+      'id': 9301,
+      'kind': 'weight_loss',
+      'title': '7 kg bis Weihnachten',
+      'description': 'Bis Heiligabend 7 Kilo leichter, mit Genuss statt Verzicht. Die App schlägt dir dafür besonders grüne Rezepte vor.',
+      'target': 7,
+      'unit': 'kg',
+      'starts_on': d(today.subtract(const Duration(days: 20))),
+      'ends_on': d(christmas),
+      'recipe_tags': <String>[],
+      'recipe_max_ed': 0.7,
+    },
+    {
+      'id': 9302,
+      'kind': 'daily_goal',
+      'title': 'Obst-/Gemüse-Challenge',
+      'description': '5 Portionen Obst und Gemüse am Tag, an 14 Tagen. Eine Portion ist eine Handvoll.',
+      'target': 14,
+      'daily_target': 5,
+      'unit': 'Portionen',
+      'starts_on': d(today.subtract(const Duration(days: 5))),
+      'ends_on': d(today.add(const Duration(days: 30))),
+      'recipe_tags': ['gemuese', 'obst', 'salat'],
+    },
+    {
+      'id': 9303,
+      'kind': 'collect',
+      'title': '5 Lebensmittel',
+      'description': 'Probier 5 Lebensmittel, die du noch nie oder lange nicht gegessen hast. Grüne Energiedichte zählt doppelt gut.',
+      'target': 5,
+      'unit': 'Lebensmittel',
+      'starts_on': d(today.subtract(const Duration(days: 2))),
+      'ends_on': d(today.add(const Duration(days: 12))),
+      'suggestions': ['Pastinake', 'Topinambur', 'Steckrübe', 'Schwarzwurzel', 'Rote Bete', 'Grünkohl', 'Quitte'],
+    },
+  ];
+}
+
+/// Beispiel-Meldungen für „News“. Titel sind Platzhalter.
+List<Map<String, dynamic>> mockNews(DateTime today) {
+  String d(int daysAgo) => today.subtract(Duration(days: daysAgo)).toIso8601String().substring(0, 10);
+  return [
+    {
+      'id': 'blog:9102',
+      'kind': 'blog',
+      'title': 'Verschiedene Körperfettarten',
+      'excerpt': 'Warum nicht jedes Fett gleich ist und was das fürs Abnehmen bedeutet.',
+      'thumbnail_url': 'asset:assets/images/tip-2.png',
+      'url': 'https://www.vibono.de/tipps/',
+      'content_id': 9102,
+      'published_on': d(1),
+    },
+    {
+      'id': 'coaching_letter:1',
+      'kind': 'coaching_letter',
+      'title': 'Coaching-Brief: Gut durch die Adventszeit',
+      'excerpt': 'Plätzchen, Glühwein, Weihnachtsfeier: So bleibst du entspannt auf Kurs.',
+      'url': 'https://www.vibono.de/coaching-briefe/',
+      'cta': 'Brief lesen',
+      'published_on': d(3),
+    },
+    {
+      'id': 'club:1',
+      'kind': 'club',
+      'title': 'Im Club: Live-Fragestunde am Donnerstag',
+      'excerpt': 'Stell deine Fragen rund ums Satt-Essen. Die Aufzeichnung gibt es danach im Club.',
+      'url': 'https://www.vibono.de/',
+      'cta': 'Zum Club',
+      'published_on': d(2),
+    },
+    {
+      'id': 'ebook:1',
+      'kind': 'ebook',
+      'title': 'Neues eBook: Satt durch den Winter',
+      'excerpt': '30 wärmende Rezepte mit grüner Energiedichte.',
+      'url': 'https://www.vibono.de/shop/',
+      'cta': 'Ansehen',
+      'published_on': d(5),
+    },
+    {
+      'id': 'offer:1',
+      'kind': 'offer',
+      'title': 'Aktion: Gewürz-Set zum Adventspreis',
+      'excerpt': 'Nur für kurze Zeit im Vibono-Shop.',
+      'url': 'https://www.vibono.de/shop/',
+      'cta': 'Zum Angebot',
+      'published_on': d(0),
+      'ends_on': today.add(const Duration(days: 7)).toIso8601String().substring(0, 10),
+    },
+  ];
+}
+
+/// Fragen fürs Quiz des Tages (wie der Standard-Pool im Plugin).
+const mockQuiz = <Map<String, dynamic>>[
+  {
+    'id': 'ed-gurke',
+    'question': 'Welches Lebensmittel hat die niedrigste Energiedichte?',
+    'answers': ['Gurke', 'Banane', 'Vollkornbrot'],
+    'correct': 0,
+    'explanation': 'Gurke hat nur rund 0,1 kcal pro Gramm. Davon kannst du dich richtig satt essen.',
+  },
+  {
+    'id': 'ed-ampel',
+    'question': 'Ab welcher Energiedichte ist ein Lebensmittel bei Vibono „grün“?',
+    'answers': ['bis 1,5 kcal/g', 'bis 2,5 kcal/g', 'bis 4 kcal/g'],
+    'correct': 0,
+    'explanation': 'Grün heißt: bis 1,5 kcal pro Gramm. Davon darfst du essen, bis du satt bist.',
+  },
+  {
+    'id': 'satt-zeit',
+    'question': 'Wie lange braucht das Sattgefühl ungefähr, bis es ankommt?',
+    'answers': ['5 Minuten', '20 Minuten', '1 Stunde'],
+    'correct': 1,
+    'explanation': 'Rund 20 Minuten. Wer langsam isst, merkt rechtzeitig, dass er satt ist.',
+  },
+  {
+    'id': 'suppe',
+    'question': 'Warum ist eine Suppe als Vorspeise eine gute Idee?',
+    'answers': ['Sie füllt den Magen mit wenig Kalorien', 'Sie beschleunigt den Stoffwechsel', 'Sie ersetzt das Trinken'],
+    'correct': 0,
+    'explanation': 'Viel Volumen, wenig Kalorien: Eine klare Gemüsesuppe vorweg macht schon halb satt.',
+  },
+  {
+    'id': 'mahlzeiten',
+    'question': 'Wie oft am Tag solltest du dich bei Vibono richtig satt essen?',
+    'answers': ['Einmal', 'Dreimal', 'So selten wie möglich'],
+    'correct': 1,
+    'explanation': 'Dreimal satt essen. Wer zwischendurch hungrig ist, greift schneller zu Snacks.',
+  },
+  {
+    'id': 'kaese',
+    'question': 'Welche Energiedichte-Farbe hat Gouda?',
+    'answers': ['Grün', 'Gelb', 'Rot'],
+    'correct': 2,
+    'explanation': 'Mit rund 3,6 kcal/g ist Gouda rot. Genießen ist erlaubt, nur eben in kleinen Mengen.',
+  },
+  {
+    'id': 'wasser',
+    'question': 'Was hilft vor dem Essen gegen zu großen Hunger?',
+    'answers': ['Ein großes Glas Wasser', 'Ein Schokoriegel', 'Nichts trinken'],
+    'correct': 0,
+    'explanation': 'Ein großes Glas Wasser vor dem Essen füllt den Magen ganz ohne Kalorien.',
+  },
 ];
 
 const mockTips = <Map<String, dynamic>>[

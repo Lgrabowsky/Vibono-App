@@ -7,6 +7,7 @@ import '../models/app_config.dart';
 import '../models/coaching_day.dart';
 import '../models/content.dart';
 import '../models/energy.dart';
+import '../models/home_feed.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
@@ -186,6 +187,10 @@ class HttpVibonoApi implements VibonoApi {
   @override
   Future<CoachingDay> coachingDay(DateTime date) async => CoachingDay.fromJson(
       _map(await _send('GET', '/coaching/today', query: {'date': date.toIso8601String().substring(0, 10)})));
+
+  @override
+  Future<HomeFeed> home(DateTime date, String platform) async => HomeFeed.fromJson(_map(await _send('GET', '/home',
+      query: {'date': date.toIso8601String().substring(0, 10), 'platform': platform})));
 
   @override
   Future<List<ContentItem>> content(String type, {String? search, List<String>? tags, int? course, int page = 1}) async {

@@ -14,7 +14,7 @@ class ConfigController extends Controller {
 	public function get( \WP_REST_Request $r ) {
 		$platform = in_array( $r['platform'], array( 'ios', 'android', 'web' ), true ) ? $r['platform'] : 'ios';
 		$links    = 'web' === $platform
-			? array( 'physical_products' => true, 'memberships' => true, 'points_redemption' => true )
+			? array( 'physical_products' => true, 'digital_products' => true, 'memberships' => true, 'points_redemption' => true )
 			: array_map( 'boolval', (array) Settings::get( 'shop_links_' . $platform ) );
 		$shop     = Settings::on( 'module_shop' ) && (bool) Settings::get( 'points_enabled' );
 		// Ohne Modul "Punkte im Shop" gibt es im Shop nichts einzulösen.
@@ -26,6 +26,7 @@ class ConfigController extends Controller {
 				'min_app_version' => (string) Settings::get( 'min_app_version' ),
 				'shop_links'      => array(
 					'physical_products' => ! empty( $links['physical_products'] ),
+					'digital_products'  => ! empty( $links['digital_products'] ),
 					'memberships'       => ! empty( $links['memberships'] ),
 					'points_redemption' => ! empty( $links['points_redemption'] ),
 				),

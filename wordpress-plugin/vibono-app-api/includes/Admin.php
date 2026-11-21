@@ -227,6 +227,14 @@ class Admin {
 		self::field( 'phase1_days', 'Tage Phase 1' );
 		self::field( 'phase2_days', 'Tage Phase 2' );
 		self::field( 'coaching_membership_plans', 'Mitgliedschaften mit Coaching-Zugang', 'list', 'Slugs, kommagetrennt. Leer = jede aktive Mitgliedschaft.' );
+		echo '<tr><th colspan="2"><h2>Startseite „Heute“</h2><p style="font-weight:normal;max-width:760px">Challenges und eigene Meldungen (Club, Gruppe, Aktionen) im Menü <em>App: Challenges</em> und <em>App: Meldungen</em> anlegen. Blogartikel, Coaching-Briefe, eBooks und Shop-Angebote erscheinen automatisch.</p></th></tr>';
+		self::field( 'home_keywords', 'Stichwörter für Rezeptvorschläge', 'list', 'Kommagetrennt, z. B. Kürbis, Suppe. Passende Rezepte schlägt die App bevorzugt vor. Leer = keine Vorgabe.' );
+		self::field( 'home_spotlight', '„Probier mal was aus mit …“', 'text', 'Ein Lebensmittel, z. B. Rote Bete. Leer = die App wählt jede Woche etwas aus der Saison.' );
+		self::field( 'home_blog_post_type', 'Inhaltstyp Blog', 'text' );
+		self::field( 'home_letter_post_type', 'Inhaltstyp Coaching-Briefe', 'text', 'ANNAHME' );
+		self::field( 'home_ebook_product_cat', 'Produktkategorie eBooks', 'text', 'ANNAHME: Slug der Kategorie im Shop.' );
+		self::field( 'home_news_max_age_days', 'Beiträge gelten als neu (Tage)' );
+		self::field( 'home_news_limit', 'Höchstens so viele Meldungen' );
 		echo '<tr><th colspan="2"><h2>MyVibono-Speicherorte (Nutzer-Meta)</h2><p>Leer = Daten liegen nur im Plugin. Gesetzt = App-Änderungen werden in dieses Feld gespiegelt und Website-Änderungen übernommen.</p></th></tr>';
 		foreach ( array( 'favorites' => 'Lieblingsrezepte', 'lessons_done' => 'Erledigte Lektionen', 'courses_done' => 'Erledigte Kurse', 'weight' => 'Mein Gewicht', 'sport' => 'Mein Sport', 'weekplan' => 'Mein Wochenplan' ) as $k => $l ) {
 			self::field( 'store_' . $k . '_meta', $l, 'text' );
@@ -235,7 +243,7 @@ class Admin {
 		foreach ( array( 'ios' => 'iOS', 'android' => 'Android' ) as $pf => $pl ) {
 			$v = (array) Settings::get( 'shop_links_' . $pf );
 			echo '<tr><th>' . esc_html( $pl ) . ': Links in der App</th><td>';
-			foreach ( array( 'physical_products' => 'Shop (physische Produkte)', 'points_redemption' => 'Punkte im Shop einlösen', 'memberships' => 'Mitgliedschaften' ) as $f => $fl ) {
+			foreach ( array( 'physical_products' => 'Shop (physische Produkte)', 'digital_products' => 'eBooks (digitale Produkte)', 'points_redemption' => 'Punkte im Shop einlösen', 'memberships' => 'Mitgliedschaften' ) as $f => $fl ) {
 				printf( '<label style="margin-right:16px"><input type="checkbox" name="links[%s][%s]" value="1" %s> %s</label>', esc_attr( $pf ), esc_attr( $f ), checked( ! empty( $v[ $f ] ), true, false ), esc_html( $fl ) );
 			}
 			echo '</td></tr>';
@@ -321,6 +329,7 @@ class Admin {
 			foreach ( array( 'ios', 'android' ) as $pf ) {
 				$out[ 'shop_links_' . $pf ] = array(
 					'physical_products' => ! empty( $links[ $pf ]['physical_products'] ),
+					'digital_products'  => ! empty( $links[ $pf ]['digital_products'] ),
 					'memberships'       => ! empty( $links[ $pf ]['memberships'] ),
 					'points_redemption' => ! empty( $links[ $pf ]['points_redemption'] ),
 				);

@@ -10,7 +10,7 @@ namespace Vibono\AppApi\Core;
  */
 class SyncRules {
 
-	const COLLECTIONS = array( 'favorites', 'lessons_done', 'courses_done', 'weight', 'sport', 'weekplan' );
+	const COLLECTIONS = array( 'favorites', 'lessons_done', 'courses_done', 'weight', 'sport', 'weekplan', 'challenges' );
 
 	const WEEKPLAN_SLOTS = array( 'fruehstueck', 'mittag', 'abend', 'snack' );
 
@@ -125,6 +125,10 @@ class SyncRules {
 					),
 					null,
 				);
+
+			case 'challenges':
+				// Teilnahme an einer Challenge der Startseite, Schlüssel = ID der Challenge.
+				return HomeRules::validate_participation( $key, $op, $data );
 		}
 		return array( null, 'unknown_collection' );
 	}

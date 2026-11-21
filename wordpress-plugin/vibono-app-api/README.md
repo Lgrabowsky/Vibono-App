@@ -45,6 +45,7 @@ Aus dem Quelltext von „Mein Coaching“ abgeleitet, im Backend änderbar:
 | Rezept-Zutaten und Portionen (Einkaufsliste) | automatisch: WP Recipe Maker, sonst Felder `zutaten`/`ingredients` und `portionen`/`servings` (ACF-Wiederholer oder Text, eine Zutat je Zeile) | Wo speichert vibono.de die Zutaten? Systemprüfung zeigt die Trefferquote. Für andere Formate gibt es den Filter `vibono_api_recipe_ingredients` |
 | Rezept-Merkmale | Begriffe `vegetarisch`, `vegan`, `ut-geeignet`, `laktosefrei` … | Taxonomien der Rezepte |
 | Bewegungstipps | Kategorie `bewegung` | |
+| Startseite „Heute“ (`GET /home`) | Coaching-Briefe `coaching_briefe`, eBooks = Produktkategorie `ebooks`, Blog = `post` | Inhaltstyp der Coaching-Briefe und eBook-Kategorie prüfen. Challenges und eigene Meldungen (Club, Gruppe, Aktionen) im Backend unter „App: Challenges“ und „App: Meldungen“, Stichwörter und „Probier mal was aus mit …“ unter Vibono-Punkte → App-Schnittstelle. Quizfragen per Filter `vibono_api_quiz_questions` |
 | Refer a Friend | Nutzer-Meta `gens_referral_id`, Parameter `raf` | siehe Migrationskonzept |
 
 Solange die Speicherorte nicht eingetragen sind, speichert das Plugin App-Daten selbst; die Website sieht sie dann noch nicht. Sobald die Meta-Schlüssel eingetragen sind, werden bestehende Website-Daten beim nächsten Abgleich übernommen. In die Theme-Felder geschrieben wird erst, wenn „MyVibono-Daten auf die Website schreiben“ eingeschaltet ist; der alte Wert wird vorher gesichert.

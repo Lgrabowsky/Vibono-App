@@ -100,10 +100,20 @@ class Settings {
 			'min_app_version'           => '1.0.0',
 			'shop_url'                  => 'https://www.vibono.de/produkte/',
 			// iOS: Punkte-Einlösen-Link standardmäßig aus, weil Apple ihn als Kauf-Link werten kann (siehe docs/APP-STORE.md).
-			'shop_links_ios'            => array( 'physical_products' => true, 'memberships' => false, 'points_redemption' => false ),
-			'shop_links_android'        => array( 'physical_products' => true, 'memberships' => false, 'points_redemption' => true ),
+			// Digitale Produkte (eBooks): Apple verbietet außerhalb der USA Kauf-Links für digitale Inhalte, daher iOS aus.
+			'shop_links_ios'            => array( 'physical_products' => true, 'digital_products' => false, 'memberships' => false, 'points_redemption' => false ),
+			'shop_links_android'        => array( 'physical_products' => true, 'digital_products' => true, 'memberships' => false, 'points_redemption' => true ),
 			'support_url'               => 'https://www.vibono.de/kontakt/',
 			'privacy_url'               => 'https://www.vibono.de/datenschutz/',
+
+			// --- Startseite „Heute“ der App ------------------------------
+			'home_keywords'             => array(),  // Stichwörter, nach denen die App Rezepte bevorzugt vorschlägt (z. B. Kürbis, Suppe).
+			'home_spotlight'            => '',       // „Probier mal was aus mit …“. Leer = die App wählt Gemüse/Obst der Saison.
+			'home_blog_post_type'       => 'post',   // Neue Blogartikel.
+			'home_letter_post_type'     => 'coaching_briefe', // ANNAHME: Inhaltstyp der Coaching-Briefe.
+			'home_ebook_product_cat'    => 'ebooks', // ANNAHME: Produktkategorie (Slug) der eBooks im Shop.
+			'home_news_max_age_days'    => 21,       // So lange gilt ein Beitrag als neu.
+			'home_news_limit'           => 5,
 
 			// --- Vision (Energiedichte) -----------------------------------
 			'vision_model'              => 'claude-opus-5-5',
