@@ -30,6 +30,7 @@ class Plugin {
 			Auth::init();
 			WebSession::init();
 			Content::init();
+			Home::init();
 			add_action( 'rest_api_init', array( self::class, 'routes' ) );
 		}
 		if ( Settings::on( 'module_web_reading' ) ) {
@@ -85,6 +86,7 @@ class Plugin {
 		( new Rest\MeController() )->register();
 		( new Rest\SyncController() )->register();
 		( new Rest\ContentController() )->register();
+		( new Rest\HomeController() )->register();
 		( new Rest\PointsController() )->register();
 		( new Rest\ReadingController() )->register();
 		( new Rest\ReferralController() )->register();

@@ -2,7 +2,7 @@ import 'json.dart';
 
 /// Sammlungen, die zwischen App und MyVibono in beide Richtungen
 /// synchronisiert werden.
-enum SyncCollection { favorites, lessonsDone, coursesDone, weight, sport, weekplan }
+enum SyncCollection { favorites, lessonsDone, coursesDone, weight, sport, weekplan, challenges }
 
 extension SyncCollectionX on SyncCollection {
   /// Name im Body von /sync (mit Unterstrich).
@@ -13,6 +13,7 @@ extension SyncCollectionX on SyncCollection {
         SyncCollection.weight => 'weight',
         SyncCollection.sport => 'sport',
         SyncCollection.weekplan => 'weekplan',
+        SyncCollection.challenges => 'challenges',
       };
 
   static SyncCollection? fromWire(String? s) =>

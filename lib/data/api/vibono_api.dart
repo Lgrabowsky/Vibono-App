@@ -2,6 +2,7 @@ import '../models/app_config.dart';
 import '../models/coaching_day.dart';
 import '../models/content.dart';
 import '../models/energy.dart';
+import '../models/home_feed.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
@@ -43,6 +44,9 @@ abstract interface class VibonoApi {
   Future<SyncPushResult> syncPush(List<Json> changes);
 
   Future<CoachingDay> coachingDay(DateTime date);
+
+  /// Startseite „Heute“: Stichwörter, Quiz, Challenges, Meldungen.
+  Future<HomeFeed> home(DateTime date, String platform);
   Future<List<ContentItem>> content(String type, {String? search, List<String>? tags, int? course, int page = 1});
   Future<List<Course>> courses();
   Future<ContentItem> contentItem(int id);

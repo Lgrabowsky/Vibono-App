@@ -12,6 +12,7 @@ import '../models/app_config.dart';
 import '../models/coaching_day.dart';
 import '../models/content.dart';
 import '../models/energy.dart';
+import '../models/home_feed.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
@@ -140,6 +141,7 @@ class MockVibonoApi implements VibonoApi {
       featureReferral: true,
       featureShopPoints: true,
       linkPhysicalProducts: true,
+      linkDigitalProducts: platform != 'ios',
       linkMemberships: web,
       linkPointsRedemption: web,
       shopUrl: 'https://www.vibono.de/shop/',
@@ -444,6 +446,27 @@ class MockVibonoApi implements VibonoApi {
       'vibono_tip': tip.toJson(),
       'tip_of_the_day': {'id': null, 'text': mockTipsOfTheDay[dayIndex % mockTipsOfTheDay.length]},
       'points': {'balance': _balance, 'app_open_awarded_today': appOpenToday, 'streak': _streakView},
+    });
+  }
+
+  @override
+  Future<HomeFeed> home(DateTime date, String platform) async {
+    await _wait();
+    final today = CoachingPlan.dateOnly(DateTime.now());
+    final day = DateTime.utc(date.year, date.month, date.day).millisecondsSinceEpoch ~/ 86400000;
+    return HomeFeed.fromJson({
+      'date': _day(date),
+      'food': {
+        // Vorgabe vom Vibono-Team (im Backend unter „Startseite Heute“ einstellbar).
+        'keywords': ['Kürbis'],
+        'spotlight': null,
+      },
+      'plan': {'quiz': mockQuiz[day % mockQuiz.length]},
+      'challenges': mockChallenges(today),
+      'news': [
+        for (final n in mockNews(today))
+          if (!(platform == 'ios' && n['kind'] == 'ebook')) n,
+      ],
     });
   }
 

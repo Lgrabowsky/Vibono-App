@@ -8,6 +8,7 @@ class RemoteConfig {
     this.featureShopPoints = false,
     this.featureWebReading = false,
     this.linkPhysicalProducts = false,
+    this.linkDigitalProducts = false,
     this.linkMemberships = false,
     this.linkPointsRedemption = false,
     this.shopUrl,
@@ -26,6 +27,9 @@ class RemoteConfig {
   final bool featureWebReading;
 
   final bool linkPhysicalProducts;
+
+  /// eBooks und andere digitale Produkte (iOS standardmäßig aus).
+  final bool linkDigitalProducts;
   final bool linkMemberships;
   final bool linkPointsRedemption;
   final String? shopUrl;
@@ -46,6 +50,7 @@ class RemoteConfig {
       featureShopPoints: shopPoints,
       featureWebReading: asBool(f['web_reading']),
       linkPhysicalProducts: asBool(s['physical_products']),
+      linkDigitalProducts: asBool(s['digital_products']),
       linkMemberships: asBool(s['memberships']),
       // Ohne Shop-Punkte gibt es auch nichts einzulösen.
       linkPointsRedemption: shopPoints && asBool(s['points_redemption']),

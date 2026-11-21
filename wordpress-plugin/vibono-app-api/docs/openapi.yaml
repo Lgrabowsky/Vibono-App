@@ -416,6 +416,7 @@ paths:
         - weight
         - sport
         - weekplan
+        - challenges
     get:
       tags:
       - Synchronisation
@@ -477,6 +478,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CoachingDay'
+  /home:
+    get:
+      tags:
+      - Inhalte
+      summary: Startseite „Heute“ (Stichwörter, Quiz, Challenges, Meldungen)
+      description: |
+        Ergänzt `GET /coaching/today`. Redaktionelle Vorgaben aus dem Backend (Vibono-Punkte → App-Schnittstelle →
+        Startseite „Heute“, Menüs „App: Challenges“ und „App: Meldungen“). Rezeptvorschläge nach Vorlieben, Phase,
+        Challenges, Saison und Wetter sowie den Fortschritt der Challenges rechnet die App selbst (auch offline).
+        Meldungen mit Shop-Link (offer, ebook) fallen weg, wenn `shop_links` der Plattform sie nicht erlaubt.
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: platform
+        schema:
+          type: string
+          enum: [ios, android, web]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeFeed'
   /content/{type}:
     parameters:
     - in: path
@@ -943,10 +972,13 @@ components:
           type: object
           description: |
             Ob die App auf den Shop verlinken darf. Physische Produkte: erlaubt. Digitale Inhalte (Mitgliedschaften):
-            standardmäßig aus, siehe docs/APP-STORE.md.
+            standardmäßig aus, siehe docs/APP-STORE.md. digital_products (eBooks): Android an, iOS aus.
           properties:
             physical_products:
               type: boolean
+            digital_products:
+              type: boolean
+              description: Neue eBooks in den Meldungen der Startseite verlinken.
             memberships:
               type: boolean
             points_redemption:
@@ -1195,6 +1227,9 @@ components:
         - weekplan: "YYYY-MM-DD:<slot>" mit slot fruehstueck|mittag|abend|snack · data {date, slot, recipe_id?, note?, portions?} (keine Uhrzeiten).
           portions: ganze Zahl 1–12, sonst 400 invalid_weekplan. Ohne recipe_id und ohne note heißt der Platz "bewusst frei".
           Portionen und freie Plätze speichert nur das Plugin, nicht die MyVibono-Felder des Themes.
+        - challenges: "<challenge_id>" · data {joined_on, start_kg?, days {YYYY-MM-DD: Anzahl}, items [Text]} = Teilnahme an einer
+          Challenge der Startseite (`GET /home`). Löschen = nicht mehr mitmachen. Ungültig: 400 invalid_challenge.
+          Nur im Plugin gespeichert, kein MyVibono-Feld.
       properties:
         collection:
           type: string
@@ -1205,6 +1240,7 @@ components:
           - weight
           - sport
           - weekplan
+          - challenges
         key:
           type: string
         deleted:
@@ -1231,6 +1267,7 @@ components:
             - weight
             - sport
             - weekplan
+            - challenges
     CollectionChange:
       type: object
       required:
@@ -1547,6 +1584,147 @@ components:
               type: boolean
             streak:
               $ref: '#/components/schemas/Streak'
+    HomeFeed:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        food:
+          type: object
+          properties:
+            keywords:
+              type: array
+              description: Stichwörter vom Vibono-Team; passende Rezepte schlägt die App bevorzugt vor.
+              items:
+                type: string
+            spotlight:
+              type: object
+              nullable: true
+              description: „Probier mal was aus mit …“. null = die App wählt wöchentlich Saisonware.
+              properties:
+                name:
+                  type: string
+        plan:
+          type: object
+          properties:
+            quiz:
+              $ref: '#/components/schemas/QuizQuestion'
+        challenges:
+          type: array
+          description: Laufende Challenges, eigene zuerst. Eigene bleiben nach dem Ende noch 7 Tage sichtbar.
+          items:
+            $ref: '#/components/schemas/Challenge'
+        news:
+          type: array
+          description: Neueste zuerst, je Art höchstens zwei, höchstens home_news_limit.
+          items:
+            $ref: '#/components/schemas/NewsItem'
+    QuizQuestion:
+      type: object
+      nullable: true
+      description: Wechselt täglich, für alle gleich. Fragenpool per Filter vibono_api_quiz_questions. Ohne Punkte.
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        answers:
+          type: array
+          minItems: 2
+          maxItems: 4
+          items:
+            type: string
+        correct:
+          type: integer
+          description: Index der richtigen Antwort.
+        explanation:
+          type: string
+    Challenge:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [weight_loss, daily_goal, collect]
+          description: weight_loss = Abnehmziel in kg, daily_goal = Tagesziel an target Tagen, collect = target Dinge sammeln.
+        title:
+          type: string
+          example: 7 kg bis Weihnachten
+        description:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        target:
+          type: number
+        unit:
+          type: string
+          example: kg
+        daily_target:
+          type: integer
+          nullable: true
+          description: Nur daily_goal, z. B. 5 Portionen.
+        starts_on:
+          type: string
+          format: date
+          nullable: true
+        ends_on:
+          type: string
+          format: date
+          nullable: true
+        recipe_tags:
+          type: array
+          items:
+            type: string
+        recipe_max_ed:
+          type: number
+          nullable: true
+        suggestions:
+          type: array
+          description: Nur collect, Ideen zum Antippen.
+          items:
+            type: string
+        joined:
+          type: boolean
+    NewsItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: blog:123
+        kind:
+          type: string
+          enum: [blog, offer, club, coaching_letter, ebook, info]
+        title:
+          type: string
+        excerpt:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        content_id:
+          type: integer
+          nullable: true
+          description: Gesetzt, wenn die App den Beitrag in der eigenen Leseansicht öffnen kann.
+        cta:
+          type: string
+          nullable: true
+        published_on:
+          type: string
+          format: date
+        starts_on:
+          type: string
+          format: date
+          nullable: true
+        ends_on:
+          type: string
+          format: date
+          nullable: true
     PointsSummary:
       type: object
       properties:
