@@ -22,6 +22,7 @@ class Settings {
 			'module_shop'               => false, // Punkte im Shop sammeln/einlösen, Hinweis am Produkt, Reiter in "Mein Konto".
 			'module_referral'           => false, // Freunde werben. Erst einschalten, wenn Refer a Friend abgeschaltet ist.
 			'module_web_reading'        => false, // Lese-Nachweis und Lesepunkte auf der Website (Skript auf Beitragsseiten).
+			'module_rewards'            => false, // Prämien: Punkte gegen exklusive Inhalte, eBooks/PDFs und Verlängerungsrabatt (App + Mein Konto).
 			'myvibono_write'            => false, // App-Änderungen in die MyVibono-Felder des Themes schreiben (sonst nur lesen).
 			'delete_data_on_uninstall'  => false, // Beim Löschen des Plugins alle Vibono-Daten entfernen (inkl. Punktestände).
 
@@ -39,15 +40,33 @@ class Settings {
 			),
 			'streak_grace_per_month'    => 2,     // Schutztage: so viele verpasste Tage pro Monat halten die Serie.
 			'streak_on_break'           => 'drop_level', // reset = zurück auf Tag 1 | drop_level = eine Stufe zurück.
-			'earn_article_read'         => 10,    // Vorschlag.
+			'earn_article_read'         => 10,    // Vorschlag. Artikel komplett gelesen (mit Lese-Nachweis).
 			'article_read_daily_cap'    => 3,     // Max. belohnte Artikel pro Tag.
+			// Coaching-Fortschritt (Vorschlag): Lektion erledigt und Kurs abgeschlossen.
+			'earn_lesson_done'          => 10,
+			'lesson_done_daily_cap'     => 5,     // Max. belohnte Lektionen pro Tag (0 = unbegrenzt).
+			'earn_course_done'          => 50,    // Bonus, wenn alle Lektionen eines Kurses erledigt sind.
 			'earn_referral'             => 500,   // Werbende Person, wenn Freund*in die erste Bestellung bezahlt hat.
 			'earn_referral_friend'      => 200,   // Willkommensbonus für Geworbene (mit erster Bestellung).
 			'referral_min_order_cents'  => 1500,  // Mindestbestellwert der ersten Bestellung.
-			'earn_purchase_per_euro'    => 5,     // 5 Punkte je Euro Warenwert = 5 % bei 1 Cent/Punkt.
+			// Punkte für Einkäufe gehören seit dem 21.11.2026 nicht mehr zu den Anlässen (Vorgabe Vibono).
+			// Bleibt abschaltbar vorhanden, falls Vibono es später wieder möchte.
+			'earn_purchases'            => false,
+			'earn_purchase_per_euro'    => 5,     // Nur wirksam mit earn_purchases. 5 Punkte je Euro = 5 % bei 1 Cent/Punkt.
 			'pending_days'              => 14,    // Kauf-/Empfehlungspunkte erst nach Widerrufsfrist bestätigen.
+			// Punkte als Guthaben an der Kasse für beliebige Produkte. Seit dem 21.11.2026 nicht mehr vorgesehen:
+			// Punkte werden gegen Prämien eingelöst (module_rewards). Abschaltbar vorhanden.
+			'redeem_at_checkout'        => false,
 			'max_redeem_percent'        => 50,    // Max. Anteil des Warenkorbs (ohne Versand), der mit Punkten bezahlt werden kann.
 			'min_redeem_points'         => 100,
+
+			// --- Prämien ----------------------------------------------------
+			// Welche Prämienarten die App selbst einlösen darf (sonst nur auf vibono.de unter Mein Konto).
+			// Verlängerungsrabatt in der App standardmäßig aus: Gutschein für eine Mitgliedschaft außerhalb
+			// der Stores (siehe docs/APP-STORE.md).
+			'rewards_app_ios'           => array( 'content' => true, 'download' => true, 'renewal_discount' => false ),
+			'rewards_app_android'       => array( 'content' => true, 'download' => true, 'renewal_discount' => false ),
+			'reward_download_minutes'   => 15,    // Gültigkeit eines Download-Links.
 
 			// --- Lese-Nachweis --------------------------------------------
 			'reading_wpm'               => 220,   // Angenommene Lesegeschwindigkeit.

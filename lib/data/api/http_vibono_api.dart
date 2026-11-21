@@ -10,6 +10,7 @@ import '../models/energy.dart';
 import '../models/json.dart';
 import '../models/points.dart';
 import '../models/profile.dart';
+import '../models/rewards.dart';
 import '../models/sync_item.dart';
 import 'api_exception.dart';
 import 'token_store.dart';
@@ -245,6 +246,18 @@ class HttpVibonoApi implements VibonoApi {
 
   @override
   Future<ReferralInfo> referral() async => ReferralInfo.fromJson(_map(await _send('GET', '/referral')));
+
+  @override
+  Future<RewardCatalog> rewards(String platform) async =>
+      RewardCatalog.fromJson(_map(await _send('GET', '/rewards', query: {'platform': platform})));
+
+  @override
+  Future<RewardRedeemResult> redeemReward(int rewardId, String platform) async =>
+      RewardRedeemResult.fromJson(_map(await _send('POST', '/rewards/$rewardId/redeem', body: {'platform': platform})));
+
+  @override
+  Future<Uri> rewardDownload(int rewardId) async =>
+      Uri.parse(asString(_map(await _send('GET', '/rewards/$rewardId/download'))['url'])!);
 
   @override
   Future<Uri> webSession(String redirectPath) async =>

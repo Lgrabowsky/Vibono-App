@@ -20,6 +20,7 @@ import '../widgets/ampel.dart';
 import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
 import 'energy_density/energy_density_screen.dart';
+import 'rewards_screen.dart';
 
 /// Rezept mit einstellbaren Portionen. Kommt es aus dem Wochenplan
 /// ([date] und [slot]), werden geänderte Portionen dort mitgespeichert.
@@ -56,6 +57,14 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final favKey = 'recipe:$recipeId';
     final fav = sync.has(SyncCollection.favorites, favKey);
     final html = r?.contentHtml;
+
+    final err = item.error;
+    if (err is ApiException && err.isRewardRequired) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Rezept')),
+        body: ExclusiveUnlockPanel(postId: recipeId, error: err, title: widget.preview?.title),
+      );
+    }
 
     return Scaffold(
       body: r == null
@@ -209,6 +218,21 @@ class RecipeCard extends ConsumerWidget {
                   child: _Ed(value: recipe.energyDensity!),
                 ),
               if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, size: 20)),
+              if (recipe.exclusive && recipe.locked)
+                Positioned(
+                  left: 6,
+                  bottom: 6,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(6, 2, 8, 2),
+                    decoration: BoxDecoration(color: VibonoColors.green900.withValues(alpha: 0.92), borderRadius: BorderRadius.circular(999)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.lock_rounded, size: 13, color: Colors.white),
+                      const SizedBox(width: 3),
+                      Text('Exklusiv · ${formatPoints(recipe.rewardCost ?? 0)} P.',
+                          style: VibonoText.small.copyWith(color: Colors.white, fontSize: 12)),
+                    ]),
+                  ),
+                ),
             ]),
           ),
         ),

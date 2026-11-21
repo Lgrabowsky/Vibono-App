@@ -8,12 +8,17 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Punkte im Vibono-Shop (WooCommerce).
  *
- * Verdienen:  bezahlte Bestellungen bringen Punkte je Euro Warenwert (ohne Versand, nach Rabatten
- *             und Punkte-Einlösung). Vorgemerkt bis Ende der Widerrufsfrist, bei Storno/Erstattung verfallen.
- * Einlösen:   im Warenkorb/an der Kasse. Umsetzung als virtueller Gutschein "vibono-punkte"
+ * Seit dem 21.11.2026 (Vorgabe Vibono) gibt es Punkte nicht mehr für Einkäufe, und Punkte werden gegen
+ * Prämien eingelöst (siehe Rewards), nicht mehr als Guthaben an der Kasse. Beides ist hier weiter
+ * vorhanden, aber standardmäßig aus (Einstellungen earn_purchases und redeem_at_checkout).
+ *
+ * Verdienen:  (nur mit earn_purchases) bezahlte Bestellungen bringen Punkte je Euro Warenwert (ohne Versand,
+ *             nach Rabatten und Punkte-Einlösung). Vorgemerkt bis Ende der Widerrufsfrist, bei Storno/Erstattung verfallen.
+ * Einlösen:   (nur mit redeem_at_checkout) im Warenkorb/an der Kasse. Umsetzung als virtueller Gutschein "vibono-punkte"
  *             (Betrag = Punkte × aktueller Cent-Wert), dadurch rechnet WooCommerce Steuern korrekt anteilig.
  *             Abbuchung beim Anlegen der Bestellung, Rückbuchung bei Storno/Fehlschlag/Erstattung.
- * Mein Konto: Reiter "Vibono-Punkte" mit Kontostand, Verlauf und Empfehlungslink.
+ * Mein Konto: Reiter "Vibono-Punkte" mit Kontostand, Prämien, Verlauf und Empfehlungslink.
+ * Prämie "Rabatt auf Verlängerung": persönlicher WooCommerce-Gutschein (create_reward_coupon).
  */
 class WooCommerce {
 
@@ -24,6 +29,21 @@ class WooCommerce {
 	/** Punkte im Shop sammeln und einlösen (Modul "Shop"). */
 	public static function shop_on(): bool {
 		return Settings::on( 'module_shop' ) && (bool) Settings::get( 'points_enabled' );
+	}
+
+	/** Punkte für Einkäufe (seit 21.11.2026 standardmäßig aus). */
+	public static function purchase_points_on(): bool {
+		return self::shop_on() && (bool) Settings::get( 'earn_purchases' );
+	}
+
+	/** Punkte als Guthaben im Warenkorb einlösen (seit 21.11.2026 standardmäßig aus). */
+	public static function checkout_redeem_on(): bool {
+		return self::shop_on() && (bool) Settings::get( 'redeem_at_checkout' );
+	}
+
+	/** Reiter "Mein Konto → Vibono-Punkte" anzeigen? */
+	public static function account_tab_on(): bool {
+		return self::shop_on() || Rewards::module_on();
 	}
 
 	public static function init(): void {
@@ -37,28 +57,32 @@ class WooCommerce {
 		Plugin::hook( 'woocommerce_store_api_checkout_order_processed', array( self::class, 'on_order_created' ) );
 
 		// Punkte für bezahlte Bestellungen (Einkauf und/oder Empfehlung).
-		if ( self::shop_on() || Settings::on( 'module_referral' ) ) {
+		if ( self::purchase_points_on() || Settings::on( 'module_referral' ) ) {
 			Plugin::hook( 'woocommerce_order_status_processing', array( self::class, 'on_paid' ) );
 			Plugin::hook( 'woocommerce_order_status_completed', array( self::class, 'on_paid' ) );
 		}
 
-		if ( ! self::shop_on() ) {
-			return;
+		// Einlösen als Guthaben an der Kasse.
+		if ( self::checkout_redeem_on() ) {
+			Plugin::hook( 'woocommerce_get_shop_coupon_data', array( self::class, 'virtual_coupon' ), 10, 2 );
+			Plugin::hook( 'woocommerce_before_calculate_totals', array( self::class, 'sync_coupon' ), 20 );
+			Plugin::hook( 'woocommerce_cart_totals_before_order_total', array( self::class, 'render_redeem_box' ) );
+			Plugin::hook( 'woocommerce_review_order_before_order_total', array( self::class, 'render_checkout_row' ) );
+			Plugin::hook( 'wp_loaded', array( self::class, 'handle_redeem_form' ), 30 );
+			Plugin::hook( 'woocommerce_cart_totals_coupon_label', array( self::class, 'coupon_label' ), 10, 2 );
+			Plugin::hook( 'woocommerce_after_checkout_validation', array( self::class, 'validate_checkout' ), 10, 2 );
+			Plugin::hook( 'woocommerce_checkout_create_order', array( self::class, 'store_redeem_on_order' ) );
+			Plugin::hook( 'woocommerce_store_api_checkout_update_order_meta', array( self::class, 'store_redeem_on_order' ) );
 		}
 
-		// Einlösen.
-		Plugin::hook( 'woocommerce_get_shop_coupon_data', array( self::class, 'virtual_coupon' ), 10, 2 );
-		Plugin::hook( 'woocommerce_before_calculate_totals', array( self::class, 'sync_coupon' ), 20 );
-		Plugin::hook( 'woocommerce_cart_totals_before_order_total', array( self::class, 'render_redeem_box' ) );
-		Plugin::hook( 'woocommerce_review_order_before_order_total', array( self::class, 'render_checkout_row' ) );
-		Plugin::hook( 'wp_loaded', array( self::class, 'handle_redeem_form' ), 30 );
-		Plugin::hook( 'woocommerce_cart_totals_coupon_label', array( self::class, 'coupon_label' ), 10, 2 );
-		Plugin::hook( 'woocommerce_after_checkout_validation', array( self::class, 'validate_checkout' ), 10, 2 );
-		Plugin::hook( 'woocommerce_checkout_create_order', array( self::class, 'store_redeem_on_order' ) );
-		Plugin::hook( 'woocommerce_store_api_checkout_update_order_meta', array( self::class, 'store_redeem_on_order' ) );
-
 		// Anzeige.
-		Plugin::hook( 'woocommerce_single_product_summary', array( self::class, 'product_hint' ), 25 );
+		if ( self::purchase_points_on() ) {
+			Plugin::hook( 'woocommerce_single_product_summary', array( self::class, 'product_hint' ), 25 );
+		}
+		if ( ! self::account_tab_on() ) {
+			return;
+		}
+		Plugin::hook( 'wp_loaded', array( Rewards::class, 'handle_account_form' ), 30 );
 		Plugin::hook( 'init', array( self::class, 'add_endpoint' ) );
 		Plugin::hook( 'woocommerce_get_query_vars', array( self::class, 'query_vars' ) );
 		Plugin::hook( 'woocommerce_account_menu_items', array( self::class, 'account_menu' ) );
@@ -77,7 +101,7 @@ class WooCommerce {
 			return;
 		}
 		$uid = (int) $order->get_customer_id();
-		if ( $uid && self::shop_on() ) {
+		if ( $uid && self::purchase_points_on() ) {
 			$points = PointsMath::purchase_points( self::goods_cents( $order ), (float) Settings::get( 'earn_purchase_per_euro' ) );
 			if ( $points > 0 ) {
 				// Basis ist "Punkte je Euro"; Points::earn multipliziert mit Aktionen.
@@ -409,6 +433,71 @@ class WooCommerce {
 		}
 	}
 
+	// ------------------------------------------- Prämie: Rabatt auf Verlängerung
+
+	/**
+	 * Persönlicher Einmal-Gutschein für die Verlängerung einer Mitgliedschaft.
+	 * Nur für das E-Mail-Konto der Person, einmal nutzbar, auf die Verlängerungs-Produkte der Prämie
+	 * beschränkt (leer = ganzer Warenkorb) und befristet.
+	 *
+	 * ANNAHME: Verlängert wird auf vibono.de durch einen neuen Kauf des Mitgliedschafts-Produkts.
+	 * Automatische Abo-Verlängerungen (WooCommerce Subscriptions) übernehmen solche Gutscheine nicht;
+	 * dafür gibt es den Filter "vibono_reward_coupon_args".
+	 *
+	 * @return array{code:string, coupon_id:int, expires_at:int}|\WP_Error
+	 */
+	public static function create_reward_coupon( int $user_id, array $reward ) {
+		if ( ! class_exists( '\WC_Coupon' ) ) {
+			return Plugin::error( 'vibono_shop_unavailable', 'Der Shop ist gerade nicht erreichbar.', 503 );
+		}
+		$user = get_userdata( $user_id );
+		if ( ! $user || ! $user->user_email ) {
+			return Plugin::error( 'vibono_no_email', 'Für den Gutschein fehlt eine E-Mail-Adresse im Konto.', 400 );
+		}
+		$expires = time() + max( 1, (int) $reward['valid_days'] ) * DAY_IN_SECONDS;
+		for ( $try = 0; $try < 5; $try++ ) {
+			$code = Core\RewardRules::coupon_code( random_bytes( 8 ) );
+			if ( ! wc_get_coupon_id_by_code( $code ) ) {
+				break;
+			}
+		}
+		$args = apply_filters(
+			'vibono_reward_coupon_args',
+			array(
+				'code'                 => $code,
+				'discount_type'        => 'percent' === $reward['discount_type'] ? 'percent' : 'fixed_cart',
+				'amount'               => wc_format_decimal( $reward['discount_amount'], 2 ),
+				'product_ids'          => (array) $reward['product_ids'],
+				'email_restrictions'   => array( $user->user_email ),
+				'usage_limit'          => 1,
+				'usage_limit_per_user' => 1,
+				'individual_use'       => false,
+				'date_expires'         => $expires,
+				'description'          => sprintf( 'Vibono-Prämie „%s“ für Konto %d', $reward['title'], $user_id ),
+			),
+			$user_id,
+			$reward
+		);
+		$coupon = new \WC_Coupon();
+		$coupon->set_props( $args );
+		$coupon->update_meta_data( '_vibono_reward_id', (int) $reward['id'] );
+		$coupon->update_meta_data( '_vibono_user_id', $user_id );
+		$id = (int) $coupon->save();
+		if ( ! $id ) {
+			return Plugin::error( 'vibono_coupon_failed', 'Der Gutschein konnte nicht angelegt werden.', 500 );
+		}
+		return array( 'code' => $coupon->get_code(), 'coupon_id' => $id, 'expires_at' => $expires );
+	}
+
+	/** Wurde der Gutschein schon benutzt? */
+	public static function coupon_used( int $coupon_id ): bool {
+		if ( ! $coupon_id || ! class_exists( '\WC_Coupon' ) ) {
+			return false;
+		}
+		$c = new \WC_Coupon( $coupon_id );
+		return $c->get_id() && $c->get_usage_count() > 0;
+	}
+
 	// ------------------------------------------------------------ Anzeige
 
 	public static function product_hint(): void {
@@ -450,22 +539,30 @@ class WooCommerce {
 		$uid     = get_current_user_id();
 		$summary = Points::summary( $uid );
 		$ledger  = Points::ledger( $uid, 1, 50 );
-		$ref     = Referral::info( $uid );
 		echo '<h3>Deine Vibono-Punkte</h3>';
-		printf( '<p><strong>%s Punkte</strong> = %s', esc_html( number_format_i18n( $summary['balance'] ) ), wp_kses_post( wc_price( $summary['value_cents'] / 100 ) ) );
+		printf( '<p><strong>%s Punkte</strong>', esc_html( number_format_i18n( $summary['balance'] ) ) );
+		if ( self::checkout_redeem_on() ) {
+			printf( ' = %s', wp_kses_post( wc_price( $summary['value_cents'] / 100 ) ) );
+		}
 		if ( $summary['pending'] ) {
 			printf( ' · %s Punkte vorgemerkt', esc_html( number_format_i18n( $summary['pending'] ) ) );
 		}
 		echo '</p>';
 		foreach ( $summary['campaigns'] as $c ) {
-			if ( $c['active'] ) {
+			if ( $c['active'] && ( 'earn' === $c['kind'] || self::checkout_redeem_on() ) ) {
 				printf( '<p class="woocommerce-info">Aktion: %s</p>', esc_html( $c['name'] . ( $c['description'] ? ' – ' . $c['description'] : '' ) ) );
 			}
 		}
-		echo '<h3>Freunde werben</h3>';
-		printf( '<p>Für jede*n Freund*in, die oder der über deinen Link zum ersten Mal bestellt, bekommst du <strong>%d Punkte</strong>. Dein Link:</p>', (int) $ref['points_per_referral'] );
-		printf( '<p><input type="text" readonly class="input-text" style="width:100%%" value="%s" onclick="this.select()"></p>', esc_attr( $ref['link'] ) );
-		printf( '<p>%d registriert · %d bestellt · %d Punkte verdient</p>', (int) $ref['invited'], (int) $ref['converted'], (int) $ref['points_earned'] );
+		if ( Rewards::module_on() ) {
+			Rewards::render_account_section( $uid );
+		}
+		if ( Settings::on( 'module_referral' ) ) {
+			$ref = Referral::info( $uid );
+			echo '<h3>Freunde werben</h3>';
+			printf( '<p>Für jede*n Freund*in, die oder der über deinen Link zum ersten Mal bestellt, bekommst du <strong>%d Punkte</strong>. Dein Link:</p>', (int) $ref['points_per_referral'] );
+			printf( '<p><input type="text" readonly class="input-text" style="width:100%%" value="%s" onclick="this.select()"></p>', esc_attr( $ref['link'] ) );
+			printf( '<p>%d registriert · %d bestellt · %d Punkte verdient</p>', (int) $ref['invited'], (int) $ref['converted'], (int) $ref['points_earned'] );
+		}
 		echo '<h3>Verlauf</h3><table class="shop_table"><thead><tr><th>Datum</th><th>Was</th><th>Punkte</th></tr></thead><tbody>';
 		foreach ( $ledger['items'] as $e ) {
 			$status = 'pending' === $e['status'] ? ' (vorgemerkt)' : ( 'void' === $e['status'] ? ' (storniert)' : '' );

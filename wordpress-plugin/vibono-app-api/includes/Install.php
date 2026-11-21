@@ -128,6 +128,50 @@ class Install {
 		) $c;"
 		);
 
+		// Prämien-Katalog (Punkte einlösen).
+		dbDelta(
+			'CREATE TABLE ' . self::table( 'rewards' ) . " (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			kind varchar(20) NOT NULL,
+			title varchar(190) NOT NULL,
+			description text NULL,
+			cost_points int(11) NOT NULL,
+			post_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			attachment_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			discount_type varchar(10) NOT NULL DEFAULT 'fixed',
+			discount_amount decimal(10,2) NOT NULL DEFAULT 0.00,
+			product_ids varchar(255) NOT NULL DEFAULT '',
+			valid_days int(11) NOT NULL DEFAULT 0,
+			per_user_limit int(11) NOT NULL DEFAULT 1,
+			enabled tinyint(1) NOT NULL DEFAULT 1,
+			sort_order int(11) NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY kind_enabled (kind,enabled),
+			KEY post_id (post_id)
+		) $c;"
+		);
+
+		// Eingelöste Prämien je Person.
+		dbDelta(
+			'CREATE TABLE ' . self::table( 'reward_unlocks' ) . " (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned NOT NULL,
+			reward_id bigint(20) unsigned NOT NULL,
+			kind varchar(20) NOT NULL,
+			points int(11) NOT NULL,
+			ledger_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			coupon_code varchar(40) NOT NULL DEFAULT '',
+			coupon_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			channel varchar(10) NOT NULL DEFAULT '',
+			created_at datetime NOT NULL,
+			expires_at datetime NULL,
+			PRIMARY KEY  (id),
+			KEY user_reward (user_id,reward_id),
+			KEY reward_id (reward_id)
+		) $c;"
+		);
+
 		// Lese-Sessions für den Lese-Nachweis.
 		dbDelta(
 			'CREATE TABLE ' . self::table( 'reading' ) . " (

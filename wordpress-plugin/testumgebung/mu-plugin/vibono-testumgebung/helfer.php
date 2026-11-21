@@ -267,12 +267,12 @@ add_action(
 			static function () {
 				vt_stuendliche_aufgaben();
 				$s    = Settings::all();
-				$keys = array( 'module_api', 'module_shop', 'module_referral', 'module_web_reading', 'myvibono_write', 'points_enabled' );
+				$keys = array( 'module_api', 'module_shop', 'module_referral', 'module_web_reading', 'module_rewards', 'myvibono_write', 'points_enabled', 'earn_purchases', 'redeem_at_checkout' );
 				$err  = get_transient( Plugin::LAST_ERROR );
 				return array(
 					'plugin'            => array( 'aktiv' => true, 'version' => VIBONO_API_VERSION, 'abgeschaltet' => defined( 'VIBONO_API_DISABLE' ) && VIBONO_API_DISABLE ),
 					'module'            => array_combine( $keys, array_map( static fn( $k ) => (bool) Settings::get( $k ), $keys ) ),
-					'werte'             => array_intersect_key( $s, array_flip( array( 'cents_per_point', 'earn_app_open', 'earn_article_read', 'article_read_daily_cap', 'earn_referral', 'earn_referral_friend', 'referral_min_order_cents', 'earn_purchase_per_euro', 'pending_days', 'max_redeem_percent', 'min_redeem_points', 'reading_min_seconds', 'reading_max_seconds', 'reading_min_scroll', 'reading_quiz_mode', 'streak_enabled', 'streak_grace_per_month', 'streak_on_break' ) ) ) + array( 'streak_levels' => Streak::levels() ),
+					'werte'             => array_intersect_key( $s, array_flip( array( 'cents_per_point', 'earn_app_open', 'earn_article_read', 'article_read_daily_cap', 'earn_lesson_done', 'lesson_done_daily_cap', 'earn_course_done', 'earn_referral', 'earn_referral_friend', 'referral_min_order_cents', 'earn_purchase_per_euro', 'pending_days', 'max_redeem_percent', 'min_redeem_points', 'reading_min_seconds', 'reading_max_seconds', 'reading_min_scroll', 'reading_quiz_mode', 'streak_enabled', 'streak_grace_per_month', 'streak_on_break' ) ) ) + array( 'streak_levels' => Streak::levels() ),
 					'adressen'          => vt_adressen(),
 					'claude_schluessel' => '' !== Settings::anthropic_key(),
 					'letzter_fehler'    => is_array( $err ) ? $err['message'] . ' (' . wp_date( 'd.m.Y H:i', $err['at'] ) . ')' : null,
@@ -283,6 +283,7 @@ add_action(
 						'regeln'       => admin_url( 'admin.php?page=vibono-points&tab=rules' ),
 						'aktionen'     => admin_url( 'admin.php?page=vibono-points&tab=campaigns' ),
 						'buchen'       => admin_url( 'admin.php?page=vibono-points&tab=adjust' ),
+						'praemien'     => admin_url( 'admin.php?page=vibono-points&tab=rewards' ),
 						'schnittstelle'=> admin_url( 'admin.php?page=vibono-points&tab=app' ),
 						'module'       => admin_url( 'admin.php?page=vibono-points&tab=modules' ),
 						'bestellungen' => admin_url( 'admin.php?page=wc-orders' ),

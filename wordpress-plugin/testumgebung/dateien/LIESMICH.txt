@@ -39,7 +39,7 @@ Backend (WordPress):  http://localhost:8080/wp-admin/
   Benutzer: admin       Passwort: vibono-test
 
 Testkonten (für Shop, Website und die Testzentrale), Passwort jeweils vibono-test:
-  anna@vibono-test.local   Coaching-Mitglied, Tag 5, hat schon Punkte,
+  anna@vibono-test.local   Coaching-Mitglied, Tag 5, hat 2.500 Punkte,
                            hat die App 6 Tage in Folge geöffnet (Serie)
   ben@vibono-test.local    ohne Mitgliedschaft, von Anna geworben, startet morgen
   clara@vibono-test.local  ganz neues Konto
@@ -52,9 +52,11 @@ In der Testzentrale (links das Menü):
   Widerrufsfrist überspringen
 - Lesen & Lesepunkte: Artikel lesen wie in der App, mit Lesezeit, Scrollen, Quiz
 - Freunde werben: Code prüfen, neues Konto mit Code registrieren
-- Shop & Bestellungen: im Test-Shop einkaufen und Punkte einlösen,
+- Prämien einlösen: Punkte gegen exklusives Rezept, exklusiven Tipp,
+  eBook (PDF) und 10 € Rabatt auf die Verlängerung
+- Shop & Bestellungen: im Test-Shop einkaufen, Gutschein einlösen,
   Bestellungen simulieren, abschließen, stornieren, erstatten
-- Aktionen: doppelte Punkte, doppelter Punktwert usw.
+- Aktionen: doppelte Punkte usw.
 - Coaching heute, Inhalte & Rezepte, Meine Daten, Profil, Energiedichte
 - E-Mails: alles, was sonst verschickt würde
 - Protokoll: jede Anfrage an die Schnittstelle mit Antwort (für den Entwickler)
@@ -62,6 +64,7 @@ In der Testzentrale (links das Menü):
 Im Backend unter "Vibono-Punkte":
 - Punktwerte und Umrechnungskurs ändern (Kurs & Regeln), dort auch die
   Stufen der Serie fürs tägliche Öffnen
+- Prämien anlegen und ändern (Prämien)
 - Aktionen anlegen
 - Punkte manuell buchen
 - Module ein- und ausschalten (Module & Anbindung)
@@ -79,6 +82,27 @@ Je mehr Tage in Folge die App geöffnet wird, desto mehr Punkte gibt es pro Tag.
    dann "App öffnen" = Tag 14 mit 10 Punkten.
 Stufen, Schutztage und was beim Abreißen passiert, stellst du im Backend ein:
 Vibono-Punkte → Kurs & Regeln → "Serie fürs tägliche Öffnen".
+
+
+PUNKTE UND PRÄMIEN
+------------------
+Punkte gibt es für: Coaching-Fortschritt (Lektion erledigt 10, Kurs
+abgeschlossen 50), Neukunden werben, die Serie fürs tägliche Öffnen und
+komplett gelesene Artikel. Für Einkäufe gibt es keine Punkte mehr, und Punkte
+lassen sich nicht mehr als Guthaben an der Kasse einlösen (beides im Backend
+unter Kurs & Regeln wieder einschaltbar).
+
+Prämien ausprobieren:
+1. Oben rechts Anna wählen, links "Prämien einlösen" öffnen.
+2. "Exklusiv: 7 Tricks gegen Heißhunger am Abend" einlösen, dann "Abrufen".
+3. Das eBook einlösen und mit "Laden" als PDF öffnen.
+4. Oben "Website (Mein Konto)" wählen: nur dort gibt es den Rabatt auf die
+   Verlängerung. Einlösen ergibt einen Gutschein VP-....
+5. Unter "Shop & Bestellungen" den Shop als Anna öffnen, das Produkt
+   "Vibono-Coaching: Verlängerung 12 Monate" in den Warenkorb legen und den
+   Gutschein eingeben: 99 € werden 89 €.
+Auf der Website sieht man exklusive Beiträge ohne Freischaltung nur als
+Anriss mit einem Kasten zum Einlösen.
 
 
 ZURÜCKSETZEN

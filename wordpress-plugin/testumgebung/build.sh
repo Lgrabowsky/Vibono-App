@@ -19,7 +19,7 @@ PKG="$OUT/$NAME"
 WP_VERSION="7.1.4"
 WC_VERSION="11.3.0"
 SQLITE_VERSION="v3.1.3"
-PHP_WIN_VERSION="8.3.36"
+PHP_WIN_VERSION="8.3.37"
 
 fetch() { # url datei
 	if [ ! -s "$CACHE/$2" ]; then

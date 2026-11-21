@@ -43,14 +43,16 @@ class PlanResolver {
     final current = m.recipe ?? m.suggestion;
     final phase = CoachingPlan.phaseFor(_start, m.date).key;
     if (current == null) return null;
-    return RecipePicker.alternative(current, m.slot, recipes, profile, phase);
+    return RecipePicker.alternative(current, m.slot, recipes.where((r) => !r.locked).toList(), profile, phase);
   }
 
   /// Passende Rezepte für einen Platz, zum Selbst-Aussuchen.
   List<ContentItem> candidates(DateTime date, MealSlot slot) {
     final phase = CoachingPlan.phaseFor(_start, date).key;
-    final fitting = recipes.where((r) => RecipePicker.fits(r, profile, phase)).toList();
-    return fitting.isEmpty ? recipes : fitting;
+    // Gesperrte Rezepte (Mitgliedschaft, exklusiv gegen Punkte) nie automatisch vorschlagen.
+    final open = recipes.where((r) => !r.locked).toList();
+    final fitting = open.where((r) => RecipePicker.fits(r, profile, phase)).toList();
+    return fitting.isEmpty ? open : fitting;
   }
 }
 

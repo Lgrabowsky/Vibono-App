@@ -16,6 +16,10 @@ class ApiException implements Exception {
   /// Oberfläche blendet die Funktion einfach aus.
   bool get isFeatureDisabled => code == 'vibono_feature_disabled';
 
+  /// Exklusiver Beitrag, der erst mit Punkten freigeschaltet wird
+  /// (`data.reward_id`, `data.cost_points`).
+  bool get isRewardRequired => code == 'vibono_reward_required';
+
   /// Freundliche deutsche Meldung für die Oberfläche.
   String get userMessage => switch (code) {
         'vibono_invalid_credentials' => 'E-Mail oder Passwort stimmt nicht.',
@@ -30,6 +34,11 @@ class ApiException implements Exception {
         'vibono_daily_cap_reached' => 'Für heute hast du alle Lesepunkte gesammelt. Morgen gibt es neue!',
         'vibono_already_rewarded' => 'Für diesen Beitrag hast du schon Punkte bekommen.',
         'vibono_feature_disabled' => 'Diese Funktion ist noch nicht freigeschaltet.',
+        'vibono_insufficient_points' => 'Dafür reichen deine Punkte noch nicht.',
+        'vibono_already_unlocked' => 'Das hast du schon freigeschaltet.',
+        'vibono_limit_reached' => 'Diese Prämie hast du schon eingelöst.',
+        'vibono_not_available_here' => 'Diese Prämie ist in der App nicht verfügbar.',
+        'vibono_link_expired' => 'Der Link ist abgelaufen. Bitte öffne die Datei noch einmal.',
         _ => message.isNotEmpty ? message : 'Da ist etwas schiefgelaufen.',
       };
 

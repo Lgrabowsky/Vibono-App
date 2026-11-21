@@ -92,6 +92,32 @@ const mockRecipes = <Map<String, dynamic>>[
   },
 ];
 
+/// Exklusives Rezept (Prämie „exklusiver Inhalt“): erst mit Punkten lesbar.
+const mockExclusiveRecipe = <String, dynamic>{
+  'id': 9091,
+  'title': 'Exklusiv: Zucchini-Lasagne',
+  'thumbnail_url': 'asset:assets/images/recipe-6.png',
+  'tags': ['abend', 'vegetarisch'],
+  'energy_density': 0.6,
+  'servings': 2,
+  'ingredients': [
+    ['Zucchini', 600, 19],
+    ['Magerquark', 250, 67],
+    ['Tomaten aus der Dose', 400, 22],
+    ['Zwiebel', 80, 40],
+    ['Käse, gerieben', 50, 350],
+  ],
+};
+
+/// Exklusiver Tipp (Prämie „exklusiver Inhalt“).
+const mockExclusiveTip = <String, dynamic>{
+  'id': 9191,
+  'title': 'Exklusiv: 7 Tricks gegen Heißhunger am Abend',
+  'thumbnail_url': 'asset:assets/images/tip-2.png',
+  'tags': ['motivation'],
+  'reading_minutes': 3,
+};
+
 const mockTips = <Map<String, dynamic>>[
   {
     'id': 9101,

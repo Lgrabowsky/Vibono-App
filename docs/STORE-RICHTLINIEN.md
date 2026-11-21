@@ -31,6 +31,12 @@ Erlaubt bleibt überall: Mitgliedschaften, die auf vibono.de gekauft wurden, in 
   wenn `GET /config` `shop_links.points_redemption` für die Plattform freigibt. Ohne Verbindung gilt „aus“.
 - „Einkauf im Vibono-Shop“ als Punkte-Quelle erscheint nur bei `shop_links.physical_products`.
 - Webseiten öffnen immer im externen Browser, nie als eingebetteter Kaufablauf.
+- **Prämien** (seit 21.11.2026): Verdiente Punkte schalten in der App exklusive Rezepte, Tipps und eBooks/PDFs frei.
+  Es fließt kein Geld und Punkte lassen sich nicht kaufen, deshalb ist das kein In-App-Kauf. Die Prämie
+  „Rabatt auf die Verlängerung“ ist ein Gutschein für eine Mitgliedschaft und zeigt die App deshalb nicht
+  (`features.reward_kinds` aus `GET /config`, je Plattform im Backend schaltbar). Sie ist nur auf vibono.de
+  einlösbar, ohne Hinweis darauf in der App.
+- Punkte für Einkäufe und Punkte als Guthaben an der Kasse sind seit 21.11.2026 standardmäßig aus.
 - Teilen des Empfehlungslinks ist erlaubt (er richtet sich an Freunde, nicht an die Person in der App).
 - Konto löschen ist in der App möglich (Apple 5.1.1(v)).
 

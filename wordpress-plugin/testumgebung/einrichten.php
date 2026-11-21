@@ -67,6 +67,7 @@ if ( 'aktivieren' === $step ) {
 			'module_shop'        => true,
 			'module_referral'    => true,
 			'module_web_reading' => true,
+			'module_rewards'     => true,
 			'myvibono_write'     => false,
 		)
 	);

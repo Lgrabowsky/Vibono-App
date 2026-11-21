@@ -16,6 +16,7 @@ import '../../theme/vibono_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/day_sheets.dart';
 import '../widgets/gamification.dart';
+import 'rewards_screen.dart';
 
 /// Beitrag lesen (Lektion oder Vibono-Tipp) mit Lese-Nachweis für Punkte.
 ///
@@ -141,7 +142,10 @@ class _ArticleScreenState extends ConsumerState<ArticleScreen> {
       final sync = ref.read(syncProvider);
       final key = '${widget.contentId}';
       if (item != null && item.type == ContentType.lesson && !sync.has(SyncCollection.lessonsDone, key)) {
-        await _celebrate(r.awardedPoints, () => sync.upsert(SyncCollection.lessonsDone, key, {'post_id': widget.contentId}));
+        // Lesepunkte plus Punkte für die erledigte Lektion (vergibt der Server beim Abgleich).
+        final lessonPoints = ref.read(pointsProvider).value?.earnRules['lesson_done'] ?? 0;
+        await _celebrate(r.awardedPoints + lessonPoints,
+            () => sync.upsert(SyncCollection.lessonsDone, key, {'post_id': widget.contentId}));
       } else {
         showPointsToast(context, r.awardedPoints, 'Beitrag gelesen');
       }
@@ -202,6 +206,10 @@ class _ArticleScreenState extends ConsumerState<ArticleScreen> {
   @override
   Widget build(BuildContext context) {
     final item = ref.watch(contentItemProvider(widget.contentId));
+    // Exklusiven Beitrag gerade freigeschaltet: jetzt gibt es auch Lesepunkte.
+    ref.listen(contentItemProvider(widget.contentId), (prev, next) {
+      if ((prev?.hasError ?? false) && next.hasValue && _session == null && !_alreadyRewarded) _startSession();
+    });
     final sync = ref.watch(syncProvider);
     final isLesson = (item.value ?? widget.preview)?.type == ContentType.lesson;
     final done = sync.has(SyncCollection.lessonsDone, '${widget.contentId}');
@@ -265,6 +273,11 @@ class _ArticleScreenState extends ConsumerState<ArticleScreen> {
                 ],
               ),
             ),
+          ),
+        AsyncError(:final error) when error is ApiException && error.isRewardRequired => ExclusiveUnlockPanel(
+            postId: widget.contentId,
+            error: error,
+            title: widget.preview?.title,
           ),
         AsyncError(:final error) => ErrorRetry(
             message: error is ApiException ? error.userMessage : 'Der Beitrag konnte nicht geladen werden.',

@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class Privacy {
 
-	const TABLES = array( 'tokens', 'sync', 'points_ledger', 'reading', 'devices' );
+	const TABLES = array( 'tokens', 'sync', 'points_ledger', 'reading', 'devices', 'reward_unlocks' );
 
 	public static function init(): void {
 		Plugin::hook( 'wp_privacy_personal_data_exporters', array( self::class, 'register_exporter' ) );
@@ -55,6 +55,7 @@ class Privacy {
 			Referral::BY_META          => 'Geworben von (Konto-ID)',
 			'_vibono_referred_at'      => 'Geworben am',
 			Streak::META               => 'Serie beim Öffnen der App',
+			Coaching::BASELINE_META    => 'Coaching-Punkte ab (Unix-Zeit)',
 		);
 		foreach ( $labels as $key => $label ) {
 			$v = get_user_meta( $uid, $key, true );
@@ -91,6 +92,22 @@ class Privacy {
 					array( 'name' => 'Punkte', 'value' => (string) $row->points ),
 					array( 'name' => 'Status', 'value' => $row->status ),
 					array( 'name' => 'Buchung', 'value' => $row->label ),
+				),
+			);
+		}
+
+		$unlocks = $wpdb->get_results( $wpdb->prepare( 'SELECT id, reward_id, kind, points, coupon_code, created_at FROM ' . Install::table( 'reward_unlocks' ) . ' WHERE user_id = %d ORDER BY id', $uid ) );
+		foreach ( $unlocks as $row ) {
+			$reward = Rewards::get( (int) $row->reward_id );
+			$data[] = array(
+				'group_id'    => 'vibono-rewards',
+				'group_label' => 'Vibono-Punkte: eingelöste Prämien',
+				'item_id'     => 'vibono-reward-' . $row->id,
+				'data'        => array(
+					array( 'name' => 'Datum (UTC)', 'value' => $row->created_at ),
+					array( 'name' => 'Prämie', 'value' => $reward ? $reward['title'] : ( 'Nr. ' . $row->reward_id ) ),
+					array( 'name' => 'Punkte', 'value' => (string) $row->points ),
+					array( 'name' => 'Gutschein', 'value' => (string) $row->coupon_code ),
 				),
 			);
 		}

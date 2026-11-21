@@ -39,6 +39,15 @@ class MyVibonoBridge {
 	}
 
 	public static function reconcile( int $user_id, array $collections ): void {
+		self::reconcile_collections( $user_id, $collections );
+		// Was bis hierher von der Website übernommen wurde, ist Vergangenheit: Ab jetzt bringen neue
+		// Website-Häkchen bei Lektionen Punkte (siehe Coaching).
+		if ( array_intersect( $collections, array( 'lessons_done', 'courses_done' ) ) ) {
+			Coaching::mark_baseline( $user_id );
+		}
+	}
+
+	private static function reconcile_collections( int $user_id, array $collections ): void {
 		foreach ( $collections as $collection ) {
 			$adapter = self::adapter( $collection );
 			if ( ! $adapter ) {
